@@ -3,19 +3,19 @@ package main
 import (
 	"log"
 
-	"github.com/guncv/Poll-Voting-Website/backend/api"
+	"github.com/guncv/Poll-Voting-Website/backend/controller"
+	"github.com/guncv/Poll-Voting-Website/backend/config"
 	"github.com/guncv/Poll-Voting-Website/backend/db"
-	"github.com/guncv/Poll-Voting-Website/backend/util"
 )
 
 func main() {
-	config, err := util.LoadConfig()
+	config, err := config.LoadConfig()
 	if err != nil {
 		log.Fatal("cannot load config:", err)
 	}
 
-	db := db.InitDB(config)
-	server := api.NewServer(config, db)
+	db := db.InitDB(*config)
+	server := controller.NewServer(*config, db)
 
 	if err := server.Start(config.ServerAddress); err != nil {
 		log.Fatal("cannot start server:", err)

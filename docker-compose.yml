@@ -1,22 +1,31 @@
+version: "3.8"
 services:
   frontend:
     build: ./frontend
+    container_name: myapp-frontend
     ports:
       - "3000:3000"
     depends_on:
       - backend
+    restart: always
+    networks:
+      - app-network
 
   backend:
     build: ./backend
+    container_name: myapp-backend
     ports:
       - "8080:8080"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - app-network
 
-
-  # Temporary DB 
   db:
     image: postgres:15
+    container_name: myapp-db
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -26,6 +35,17 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
 
 volumes:
   db_data:
+
+networks:
+  app-network:
+    driver: bridge

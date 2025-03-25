@@ -1,27 +1,27 @@
-.PHONY: run docker_build down clean build-proto clean-proto
+.PHONY: info run build down clean logs restart ps rebuild
 
 info:
-	docker-compose ps
+	docker compose ps
 
 run:
-	docker-compose up
+	docker compose up
 
 down:
-	docker-compose down
+	docker compose down
 
 build:
-	docker-compose build
+	docker compose build
 
 clean:
-	docker-compose down --rmi all --volumes --remove-orphans
+	docker compose down --rmi all --volumes --remove-orphans
 
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 restart:
-	docker-compose restart
+	docker compose restart
 
 ps:
-	docker-compose ps
+	docker compose ps
 
-rebuild: clean docker_build run
+rebuild: clean build run

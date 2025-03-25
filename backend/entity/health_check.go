@@ -1,4 +1,4 @@
-package api
+package entity
 
 type HealthCheckResponse struct {
 	Status  string `json:"status"`
