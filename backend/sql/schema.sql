@@ -14,11 +14,11 @@ CREATE TABLE popular_questions (
     total_votes INT NOT NULL,
     created_by INT, 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
     CONSTRAINT fk_users 
       FOREIGN KEY (created_by) 
       REFERENCES users(user_id)
+      ON DELETE CASCADE
 );
 
--- If we want EXACTLY one top question per day
+-- If we want EXACTLY one top question per day we can add this
 -- CREATE UNIQUE INDEX unique_top_question_per_day ON popular_questions (archive_date);
