@@ -5,8 +5,8 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE popular_questions (
-    pop_q_id SERIAL PRIMARY KEY,
+CREATE TABLE questions (
+    question_id SERIAL PRIMARY KEY,
     archive_date DATE NOT NULL, -- date when the question was most popular
     question_text VARCHAR(255) NOT NULL,
     yes_votes INT NOT NULL,

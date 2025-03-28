@@ -4,7 +4,7 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-    "github.com/guncv/Poll-Voting-Website/backend/entity"
+	"github.com/guncv/Poll-Voting-Website/backend/entity"
 )
 
 // Register a new user
@@ -36,7 +36,7 @@ func (s *Server) Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	user, err := s.userService.Login(req.Email, req.Password)
+	u, err := s.userService.Login(req.Email, req.Password)
 	if err != nil {
 		if err.Error() == "invalid credentials" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
@@ -45,21 +45,18 @@ func (s *Server) Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	// Placeholder: In a real app, you'd create a session or set a JWT token.
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Login successful",
 		"user": fiber.Map{
-			"user_id": user.UserID,
-			"email":   user.Email,
+			"user_id": u.UserID,
+			"email":   u.Email,
 		},
 	})
 }
 
-// Profile - a placeholder for returning the currently logged-in user's info
+// Profile (Placeholder) returns user #1
 func (s *Server) Profile(c *fiber.Ctx) error {
-	// In a real app, you'd parse a JWT from the headers, or check a session/cookie.
-	// We'll pretend user #1 is logged in for now:
-	user, err := s.userService.GetUserByID(1)
+	u, err := s.userService.GetUserByID(1)
 	if err != nil {
 		if err.Error() == "user not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
@@ -67,29 +64,22 @@ func (s *Server) Profile(c *fiber.Ctx) error {
 		s.logger.ErrorWithID(c.Context(), "Profile error: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
-	// Return the user's info as an example
-	return c.Status(fiber.StatusOK).JSON(user)
+	return c.Status(fiber.StatusOK).JSON(u)
 }
 
-// Logout - a placeholder for clearing a session or token
+// Logout - placeholder
 func (s *Server) Logout(c *fiber.Ctx) error {
-	// In a real app, you'd remove a session cookie or invalidate a JWT.
-	// We'll just return a success message.
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Logout successful (placeholder)",
-	})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Logout successful (placeholder)"})
 }
 
-// GetUser fetches user by ID: GET /api/user/:id
+// GetUser by ID
 func (s *Server) GetUser(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
 	}
-
-	user, err := s.userService.GetUserByID(id)
+	u, err := s.userService.GetUserByID(id)
 	if err != nil {
 		if err.Error() == "user not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
@@ -97,33 +87,27 @@ func (s *Server) GetUser(c *fiber.Ctx) error {
 		s.logger.ErrorWithID(c.Context(), "GetUser error: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
-	return c.Status(fiber.StatusOK).JSON(user)
+	return c.Status(fiber.StatusOK).JSON(u)
 }
 
-// DeleteUser removes a user by ID: DELETE /api/user/:id
+// DeleteUser
 func (s *Server) DeleteUser(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid user ID"})
 	}
-
-	err = s.userService.DeleteUser(id)
-	if err != nil {
+	if err := s.userService.DeleteUser(id); err != nil {
 		if err.Error() == "user not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 		}
 		s.logger.ErrorWithID(c.Context(), "DeleteUser error: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "User deleted successfully",
-	})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "User deleted successfully"})
 }
 
-// UpdateUser modifies a user’s email/password: PUT /api/user/:id
+// UpdateUser
 func (s *Server) UpdateUser(c *fiber.Ctx) error {
 	idParam := c.Params("id")
 	id, err := strconv.Atoi(idParam)
@@ -136,7 +120,7 @@ func (s *Server) UpdateUser(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 
-	updatedUser, err := s.userService.UpdateUser(id, req.Email, req.Password)
+	u, err := s.userService.UpdateUser(id, req.Email, req.Password)
 	if err != nil {
 		if err.Error() == "user not found" {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
@@ -144,6 +128,5 @@ func (s *Server) UpdateUser(c *fiber.Ctx) error {
 		s.logger.ErrorWithID(c.Context(), "UpdateUser error: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-
-	return c.Status(fiber.StatusOK).JSON(updatedUser)
+	return c.Status(fiber.StatusOK).JSON(u)
 }

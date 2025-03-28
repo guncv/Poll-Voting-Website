@@ -15,7 +15,7 @@ VALUES
 -- We'll use CURRENT_DATE for a recent one, and offset days for older ones.
 
 -- Example #1: Pineapple on pizza?
-INSERT INTO popular_questions (
+INSERT INTO questions (
   archive_date,
   question_text,
   yes_votes,
@@ -33,7 +33,7 @@ VALUES (
 );
 
 -- Example #2: Morning person?
-INSERT INTO popular_questions (
+INSERT INTO questions (
   archive_date,
   question_text,
   yes_votes,
@@ -51,7 +51,7 @@ VALUES (
 );
 
 -- Example #3: Would you pay for ChatGPT?
-INSERT INTO popular_questions (
+INSERT INTO questions (
   archive_date,
   question_text,
   yes_votes,

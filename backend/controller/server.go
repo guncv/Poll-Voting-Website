@@ -17,7 +17,7 @@ type Server struct {
 	logger             log.LoggerInterface
 	healthCheckService service.HealthCheckService
 	userService        service.UserService
-	// questionService    service.QuestionService
+	questionService    service.QuestionService
 }
 
 // NewServer creates a new Fiber server with injected dependencies.
@@ -26,8 +26,8 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	healthService := service.NewHealthCheckService()
 	userRepo := repository.NewUserRepository(db)
 	userService := service.NewUserService(userRepo)
-	// questionService := service.NewQuestionService(db)
-	
+	questionRepo := repository.NewQuestionRepository(db)
+	questionService := service.NewQuestionService(questionRepo)
 	server := &Server{
 		config:             cfg,
 		db:                 db,
@@ -35,7 +35,7 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 		logger:             logger,
 		healthCheckService: healthService,
 		userService:        userService,
-		// questionService:    questionService,
+		questionService:    questionService,
 	}
 
 	server.setupRoutes()
@@ -57,12 +57,11 @@ func (s *Server) setupRoutes() {
 	user.Delete("/:id", s.DeleteUser)
 	user.Put("/:id", s.UpdateUser)
 
-	// q := api.Group("/question")
-	// q.Post("/", s.CreateQuestion)
-	// q.Get("/", s.GetAllQuestions)
-	// q.Get("/:id", s.GetQuestion)
-	// q.Put("/:id", s.UpdateQuestion)
-	// q.Delete("/:id", s.DeleteQuestion)
+	q := api.Group("/question")
+	q.Post("/", s.CreateQuestion)
+	q.Get("/", s.GetAllQuestions)
+	q.Get("/:id", s.GetQuestion)
+	q.Delete("/:id", s.DeleteQuestion)
 }
 
 // Start runs the Fiber app.
