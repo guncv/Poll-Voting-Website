@@ -5,6 +5,7 @@ import (
 
 	"github.com/guncv/Poll-Voting-Website/backend/model"
 	"github.com/guncv/Poll-Voting-Website/backend/repository"
+	"github.com/guncv/Poll-Voting-Website/backend/util"
 	"gorm.io/gorm"
 )
 
@@ -26,6 +27,7 @@ func NewUserService(r repository.UserRepository) UserService {
 
 // Register a new user if email not taken
 func (us *userService) Register(email, password string) (model.User, error) {
+	// Check if user already exists
 	_, err := us.repo.FindByEmail(email)
 	if err == nil {
 		return model.User{}, errors.New("user already exists")
@@ -34,9 +36,15 @@ func (us *userService) Register(email, password string) (model.User, error) {
 		return model.User{}, err
 	}
 
+	// Hash the password before storing it
+	hashedPassword, err := util.HashPassword(password)
+	if err != nil {
+		return model.User{}, err
+	}
+
 	newUser := model.User{
 		Email:    email,
-		Password: password, // normally hashed
+		Password: hashedPassword, // store hashed password
 	}
 	created, err := us.repo.CreateUser(newUser)
 	if err != nil {
@@ -45,7 +53,7 @@ func (us *userService) Register(email, password string) (model.User, error) {
 	return created, nil
 }
 
-// Login checks email/pass
+// Login checks email/password
 func (us *userService) Login(email, password string) (model.User, error) {
 	u, err := us.repo.FindByEmail(email)
 	if err != nil {
@@ -55,11 +63,13 @@ func (us *userService) Login(email, password string) (model.User, error) {
 		return model.User{}, err
 	}
 
-	if u.Password != password {
+	// Check if the provided password matches the stored hashed password
+	if err := util.CheckPassword(password, u.Password); err != nil {
 		return model.User{}, errors.New("invalid credentials")
 	}
 	return u, nil
 }
+
 
 // GetUserByID returns user or "user not found"
 func (us *userService) GetUserByID(id int) (model.User, error) {
