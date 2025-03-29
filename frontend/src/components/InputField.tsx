@@ -31,4 +31,5 @@ const inputStyle: CSSProperties = {
   backgroundColor: 'white',
   color: 'black',
   fontSize: '15px',
+  fontFamily: 'Poppins, sans-serif',
 }
