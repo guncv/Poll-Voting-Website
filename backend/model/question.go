@@ -1,9 +1,13 @@
 package model
 
-import "time"
+import (
+	"time"
+	"github.com/google/uuid"
+)
+
 
 type Question struct {
-	QuestionID   int       `json:"question_id" gorm:"primaryKey;autoIncrement"`
+	QuestionID   uuid.UUID `json:"question_id" gorm:"type:uuid;primaryKey"`
 	ArchiveDate  time.Time `json:"archive_date" gorm:"type:date;not null"`
 	QuestionText string    `json:"question_text" gorm:"type:varchar(255);not null"`
 	YesVotes     int       `json:"yes_votes"    gorm:"not null"`
