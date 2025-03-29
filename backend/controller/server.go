@@ -24,10 +24,13 @@ type Server struct {
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	logger := log.Initialize(cfg.AppEnv)
 	healthService := service.NewHealthCheckService()
-	userRepo := repository.NewUserRepository(db)
-	userService := service.NewUserService(userRepo)
-	questionRepo := repository.NewQuestionRepository(db)
-	questionService := service.NewQuestionService(questionRepo)
+
+	userRepo := repository.NewUserRepository(db, logger)
+	userService := service.NewUserService(userRepo, logger)
+
+	questionRepo := repository.NewQuestionRepository(db, logger)
+	questionService := service.NewQuestionService(questionRepo, logger)
+	
 	server := &Server{
 		config:             cfg,
 		db:                 db,
