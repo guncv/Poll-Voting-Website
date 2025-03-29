@@ -1,20 +1,15 @@
 -- ================================
 -- 1) Insert Mock Users
 -- ================================
-INSERT INTO users (email, password)
+INSERT INTO users (user_id, email, password)
 VALUES
--- Passwords here are placeholder text; in a real app you'd store hashed/salted passwords.
-('alice@example.com',  'hashed_password_alice'),
-('bob@example.com',    'hashed_password_bob'),
-('charlie@example.com','hashed_password_charlie');
+  ('11111111-1111-1111-1111-111111111111', 'alice@example.com',  'hashed_password_alice'),
+  ('22222222-2222-2222-2222-222222222222', 'bob@example.com',    'hashed_password_bob'),
+  ('33333333-3333-3333-3333-333333333333', 'charlie@example.com','hashed_password_charlie');
 
 -- ================================
 -- 2) Insert Mock Popular Questions
 -- ================================
--- We'll pretend these were the top questions on different days.
--- We'll use CURRENT_DATE for a recent one, and offset days for older ones.
-
--- Example #1: Pineapple on pizza?
 INSERT INTO questions (
   archive_date,
   question_text,
@@ -29,10 +24,9 @@ VALUES (
   30,
   20,
   50,
-  1      -- created_by user_id=1 (Alice)
+  '11111111-1111-1111-1111-111111111111'
 );
 
--- Example #2: Morning person?
 INSERT INTO questions (
   archive_date,
   question_text,
@@ -47,10 +41,9 @@ VALUES (
   45,
   15,
   60,
-  2      -- created_by user_id=2 (Bob)
+  '22222222-2222-2222-2222-222222222222'
 );
 
--- Example #3: Would you pay for ChatGPT?
 INSERT INTO questions (
   archive_date,
   question_text,
@@ -60,10 +53,10 @@ INSERT INTO questions (
   created_by
 )
 VALUES (
-  CURRENT_DATE,         -- for today
+  CURRENT_DATE,
   'Would you pay for ChatGPT?',
   60,
   10,
   70,
-  3      -- created_by user_id=3 (Charlie)
+  '33333333-3333-3333-3333-333333333333'
 );
