@@ -14,6 +14,7 @@ type DBConfig struct {
 	User     string `mapstructure:"DB_USER"`
 	Password string `mapstructure:"DB_PASSWORD"`
 	Name     string `mapstructure:"DB_NAME"`
+	SSLMode  string `mapstructure:"DB_SSLMODE"` // new field for SSL mode
 }
 
 // Config is the main configuration struct for your application.

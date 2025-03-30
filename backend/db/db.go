@@ -16,8 +16,8 @@ var DB *gorm.DB
 func InitDB(cfg config.Config) *gorm.DB {
 	var err error
 
-	dbSource := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
-		cfg.DB.Host, cfg.DB.User, cfg.DB.Password, cfg.DB.Name, cfg.DB.Port,
+	dbSource := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s",
+		cfg.DB.Host, cfg.DB.User, cfg.DB.Password, cfg.DB.Name, cfg.DB.Port, cfg.DB.SSLMode,
 	)
 
 	for i := 1; i <= 5; i++ {
