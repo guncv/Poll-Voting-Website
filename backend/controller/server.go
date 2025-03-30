@@ -48,24 +48,33 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 
 // setupRoutes defines all routes for the application.
 func (s *Server) setupRoutes() {
-	api := s.app.Group("/api")
-	api.Get("/health", s.HealthCheck)
+    api := s.app.Group("/api")
+    api.Get("/health", s.HealthCheck)
 
-	user := api.Group("/user")
-	user.Post("/register", s.Register)
-	user.Post("/login", s.Login)
-	user.Get("/profile", s.Profile)
-	user.Get("/logout", s.Logout)
-	user.Get("/:id", s.GetUser)
-	user.Delete("/:id", s.DeleteUser)
-	user.Put("/:id", s.UpdateUser)
+    user := api.Group("/user")
+    user.Post("/register", s.Register)
+    user.Post("/login", s.Login)
+    
+    // Apply JWT middleware to protected routes.
+    // This middleware should extract the token and set c.Locals("userID")
+    user.Use(JWTMiddleware)
 
-	q := api.Group("/question")
-	q.Post("/", s.CreateQuestion)
-	q.Get("/", s.GetAllQuestions)
-	q.Get("/:id", s.GetQuestion)
-	q.Delete("/:id", s.DeleteQuestion)
+    // Static 
+    user.Get("/profile", s.Profile)
+    user.Get("/logout", s.Logout)
+    
+    // Dynamic 
+    user.Get("/:id", s.GetUser)
+    user.Delete("/:id", s.DeleteUser)
+    user.Put("/:id", s.UpdateUser)
+
+    q := api.Group("/question")
+    q.Post("/", s.CreateQuestion)
+    q.Get("/", s.GetAllQuestions)
+    q.Get("/:id", s.GetQuestion)
+    q.Delete("/:id", s.DeleteQuestion)
 }
+
 
 // Start runs the Fiber app.
 func (s *Server) Start(address string) error {

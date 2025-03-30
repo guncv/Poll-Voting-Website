@@ -15,9 +15,9 @@ import (
 type UserService interface {
 	Register(ctx context.Context, email, password string) (model.User, error)
 	Login(ctx context.Context, email, password string) (model.User, error)
-	GetUserByID(ctx context.Context, id int) (model.User, error)
-	UpdateUser(ctx context.Context, id int, newEmail, newPassword string) (model.User, error)
-	DeleteUser(ctx context.Context, id int) error
+	GetUserByID(ctx context.Context, id string) (model.User, error)
+	UpdateUser(ctx context.Context, id string, newEmail, newPassword string) (model.User, error)
+	DeleteUser(ctx context.Context, id string) error
 }
 
 type userService struct {
@@ -94,7 +94,7 @@ func (us *userService) Login(ctx context.Context, email, password string) (model
 }
 
 // GetUserByID retrieves a user by their ID.
-func (us *userService) GetUserByID(ctx context.Context, id int) (model.User, error) {
+func (us *userService) GetUserByID(ctx context.Context, id string) (model.User, error) {
 	us.log.InfoWithID(ctx, "[Service: GetUserByID] Called with id:", id)
 
 	u, err := us.repo.FindByID(ctx, id)
@@ -112,7 +112,7 @@ func (us *userService) GetUserByID(ctx context.Context, id int) (model.User, err
 }
 
 // UpdateUser modifies an existing user's email and/or password.
-func (us *userService) UpdateUser(ctx context.Context, id int, newEmail, newPassword string) (model.User, error) {
+func (us *userService) UpdateUser(ctx context.Context, id string, newEmail, newPassword string) (model.User, error) {
 	us.log.InfoWithID(ctx, "[Service: UpdateUser] Called with id:", id)
 
 	u, err := us.repo.FindByID(ctx, id)
@@ -149,7 +149,7 @@ func (us *userService) UpdateUser(ctx context.Context, id int, newEmail, newPass
 }
 
 // DeleteUser ensures a user exists and deletes the user.
-func (us *userService) DeleteUser(ctx context.Context, id int) error {
+func (us *userService) DeleteUser(ctx context.Context, id string) error {
 	us.log.InfoWithID(ctx, "[Service: DeleteUser] Called with id:", id)
 
 	// Check if the user exists.

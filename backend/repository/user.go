@@ -13,9 +13,9 @@ import (
 type UserRepository interface {
 	CreateUser(ctx context.Context, u model.User) (model.User, error)
 	FindByEmail(ctx context.Context, email string) (model.User, error)
-	FindByID(ctx context.Context, id int) (model.User, error)
+	FindByID(ctx context.Context, id string) (model.User, error)
 	UpdateUser(ctx context.Context, u model.User) (model.User, error)
-	DeleteUser(ctx context.Context, id int) error
+	DeleteUser(ctx context.Context, id string) error
 }
 
 type userRepository struct {
@@ -56,10 +56,11 @@ func (ur *userRepository) FindByEmail(ctx context.Context, email string) (model.
 	return user, nil
 }
 
-func (ur *userRepository) FindByID(ctx context.Context, id int) (model.User, error) {
+func (ur *userRepository) FindByID(ctx context.Context, id string) (model.User, error) {
 	ur.log.InfoWithID(ctx, "[Repository: FindByID] Called for id:", id)
 	var user model.User
-	if err := ur.db.First(&user, id).Error; err != nil {
+	// Use a where clause to find by the user_id column.
+	if err := ur.db.First(&user, "user_id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			ur.log.ErrorWithID(ctx, "[Repository: FindByID] User not found with id:", id)
 			return model.User{}, gorm.ErrRecordNotFound
@@ -81,9 +82,9 @@ func (ur *userRepository) UpdateUser(ctx context.Context, u model.User) (model.U
 	return u, nil
 }
 
-func (ur *userRepository) DeleteUser(ctx context.Context, id int) error {
+func (ur *userRepository) DeleteUser(ctx context.Context, id string) error {
 	ur.log.InfoWithID(ctx, "[Repository: DeleteUser] Called with id:", id)
-	if err := ur.db.Delete(&model.User{}, id).Error; err != nil {
+	if err := ur.db.Delete(&model.User{}, "user_id = ?", id).Error; err != nil {
 		ur.log.ErrorWithID(ctx, "[Repository: DeleteUser] Error deleting user:", err)
 		return err
 	}

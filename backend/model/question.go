@@ -7,7 +7,7 @@ import (
 
 
 type Question struct {
-	QuestionID   uuid.UUID `json:"question_id" gorm:"type:uuid;primaryKey"`
+	QuestionID   uuid.UUID `json:"question_id" gorm:"type:uuid;default:uuid_generate_v4();primaryKey"`
 	ArchiveDate  time.Time `json:"archive_date" gorm:"type:date;not null"`
 	QuestionText string    `json:"question_text" gorm:"type:varchar(255);not null"`
 	YesVotes     int       `json:"yes_votes"    gorm:"not null"`
