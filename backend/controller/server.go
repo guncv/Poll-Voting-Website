@@ -22,7 +22,7 @@ type Server struct {
 	logger             log.LoggerInterface
 	healthCheckService service.HealthCheckService
 	userService        service.UserService
-	questionService    service.QuestionService
+	questionService    service.IQuestionService
 }
 
 func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterface) *sns.Client {
@@ -52,7 +52,7 @@ func NewServer(cfg config.Config, db *gorm.DB, cacheService db.CacheService,) *S
 	userService := service.NewUserService(userRepo, logger, notificationService)
 
 	questionRepo := repository.NewQuestionRepository(db, logger)
-	questionService := service.NewQuestionService(questionRepo, logger)
+	questionService := service.NewQuestionService(questionRepo, cacheService, logger)
 
 	server := &Server{
 		config:             cfg,
@@ -100,6 +100,13 @@ func (s *Server) setupRoutes() {
 	q.Get("/", s.GetAllQuestions)
 	q.Get("/:id", s.GetQuestion)
 	q.Delete("/:id", s.DeleteQuestion)
+	
+	q.Post("/cache", s.CreateQuestionCache)
+	q.Get("/cache/:id", s.GetQuestionCache)
+	q.Delete("/cache/:id", s.DeleteQuestionCache)
+	q.Get("/cache/today", s.GetAllTodayQuestionIDs)
+	q.Post("/vote", s.VoteForQuestion)
+
 }
 
 // Start runs the Fiber app.

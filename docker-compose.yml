@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   frontend:
     build:
@@ -11,7 +10,7 @@ services:
       - backend
     restart: always
     networks:
-      - app-network
+      - cv-c9-network
 
   backend:
     build:
@@ -22,7 +21,7 @@ services:
       - "8080:8080"
     restart: always
     networks:
-      - app-network
+      - cv-c9-network
 
 networks:
   cv-c9-network:

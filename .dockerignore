@@ -1,13 +1,24 @@
-node_modules
-.next
-Dockerfile
-docker-compose.yml
+# Common
 *.log
-.env
+.DS_Store
+.env*
 .git
 .gitignore
-.DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+docker-compose.yml
+Dockerfile
+
+# Node (Frontend)
+node_modules
+.next
+frontend/node_modules
+frontend/.next
+
+# Go (Backend)
+backend/tmp
+backend/bin
+backend/vendor
+backend/.idea
+
+# Ignore dev-specific files
+*.swp
+*.swo

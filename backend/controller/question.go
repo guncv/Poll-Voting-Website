@@ -96,3 +96,81 @@ func (s *Server) DeleteQuestion(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: DeleteQuestion] Question deleted successfully with id:", id)
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Question deleted successfully"})
 }
+
+// CreateQuestionCache handles POST /question/cache
+func (s *Server) CreateQuestionCache(c *fiber.Ctx) error {
+	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestionCache] Called")
+
+	var req entity.QuestionCache
+	if err := c.BodyParser(&req); err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestionCache] Failed to parse body:", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	if err := s.questionService.CreateQuestionCache(c.Context(), req); err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestionCache] Service error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestionCache] Successfully cached question")
+	return c.SendStatus(fiber.StatusCreated)
+}
+
+// GetQuestionCache handles GET /question/cache/:id
+func (s *Server) GetQuestionCache(c *fiber.Ctx) error {
+	s.logger.InfoWithID(c.Context(), "[Controller: GetQuestionCache] Called")
+
+	questionID := c.Params("id")
+	result, err := s.questionService.GetQuestionCache(c.Context(), questionID)
+	if err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: GetQuestionCache] Service error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(result)
+}
+
+// DeleteQuestionCache handles DELETE /question/cache/:id
+func (s *Server) DeleteQuestionCache(c *fiber.Ctx) error {
+	s.logger.InfoWithID(c.Context(), "[Controller: DeleteQuestionCache] Called")
+
+	questionID := c.Params("id")
+	if err := s.questionService.DeleteQuestionCache(c.Context(), questionID); err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: DeleteQuestionCache] Service error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Deleted from cache"})
+}
+
+// GetAllTodayQuestionIDs handles GET /question/cache/today
+func (s *Server) GetAllTodayQuestionIDs(c *fiber.Ctx) error {
+	s.logger.InfoWithID(c.Context(), "[Controller: GetAllTodayQuestionIDs] Called")
+
+	ids, err := s.questionService.GetAllTodayQuestionIDs(c.Context())
+	if err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: GetAllTodayQuestionIDs] Service error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"question_ids": ids})
+}
+
+// VoteForQuestion handles POST /question/vote
+func (s *Server) VoteForQuestion(c *fiber.Ctx) error {
+	s.logger.InfoWithID(c.Context(), "[Controller: VoteForQuestion] Called")
+
+	var req entity.VoteRequest
+	if err := c.BodyParser(&req); err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: VoteForQuestion] Failed to parse body:", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+
+	resp, err := s.questionService.VoteForQuestion(c.Context(), req)
+	if err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: VoteForQuestion] Service error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(resp)
+}
