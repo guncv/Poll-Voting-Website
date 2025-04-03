@@ -21,15 +21,17 @@ type UserService interface {
 }
 
 type userService struct {
-	repo repository.UserRepository
-	log  log.LoggerInterface
+	repo                repository.UserRepository
+	log                 log.LoggerInterface
+	notificationService INotificationService
 }
 
 // NewUserService creates a new userService with injected repository and logger.
-func NewUserService(r repository.UserRepository, logger log.LoggerInterface) UserService {
+func NewUserService(r repository.UserRepository, logger log.LoggerInterface, notificationService INotificationService) UserService {
 	return &userService{
-		repo: r,
-		log:  logger,
+		repo:                r,
+		log:                 logger,
+		notificationService: notificationService,
 	}
 }
 
@@ -65,6 +67,12 @@ func (us *userService) Register(ctx context.Context, email, password string) (mo
 		return model.User{}, err
 	}
 
+	err = us.notificationService.AddSubscriberToUserTopic(ctx, email)
+	if err != nil {
+		us.log.ErrorWithID(ctx, "[Service: Register] Error adding subscriber to admin topic:", err)
+		return model.User{}, err
+	}
+
 	us.log.InfoWithID(ctx, "[Service: Register] User created successfully with email:", email)
 	return created, nil
 }
@@ -87,6 +95,12 @@ func (us *userService) Login(ctx context.Context, email, password string) (model
 	if err := util.CheckPassword(password, u.Password); err != nil {
 		us.log.ErrorWithID(ctx, "[Service: Login] Invalid credentials for email:", email)
 		return model.User{}, errors.New("invalid credentials")
+	}
+
+	err = us.notificationService.NotifyUserOfUrgentQuestion(ctx, "Urgent Question", "A new user has logged in with email: "+email)
+	if err != nil {
+		us.log.ErrorWithID(ctx, "[Service: Login] Error notifying user of urgent question:", err)
+		return model.User{}, err
 	}
 
 	us.log.InfoWithID(ctx, "[Service: Login] User logged in successfully with email:", email)

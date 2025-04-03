@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/gofiber/fiber/v2"
 	"github.com/guncv/Poll-Voting-Website/backend/config"
 	"github.com/guncv/Poll-Voting-Website/backend/log"
@@ -20,17 +23,35 @@ type Server struct {
 	questionService    service.QuestionService
 }
 
+func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterface) *sns.Client {
+
+	customCreds := aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(
+		cfg.AccessKey,
+		cfg.SecretKey,
+		cfg.SessionToken,
+	))
+
+	return sns.New(sns.Options{
+		Credentials: customCreds,
+		Region:      cfg.Region,
+	})
+}
+
 // NewServer creates a new Fiber server with injected dependencies.
 func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	logger := log.Initialize(cfg.AppEnv)
 	healthService := service.NewHealthCheckService()
 
+	notificationClient := NewNotificationClient(cfg.Notification, logger)
+	notificationRepo := repository.NewNotificationRepository(notificationClient, cfg, logger)
+	notificationService := service.NewNotificationService(notificationRepo, logger)
+
 	userRepo := repository.NewUserRepository(db, logger)
-	userService := service.NewUserService(userRepo, logger)
+	userService := service.NewUserService(userRepo, logger, notificationService)
 
 	questionRepo := repository.NewQuestionRepository(db, logger)
 	questionService := service.NewQuestionService(questionRepo, logger)
-	
+
 	server := &Server{
 		config:             cfg,
 		db:                 db,
@@ -48,33 +69,32 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 
 // setupRoutes defines all routes for the application.
 func (s *Server) setupRoutes() {
-    api := s.app.Group("/api")
-    api.Get("/health", s.HealthCheck)
+	api := s.app.Group("/api")
+	api.Get("/health", s.HealthCheck)
 
-    user := api.Group("/user")
-    user.Post("/register", s.Register)
-    user.Post("/login", s.Login)
-    
-    // Apply JWT middleware to protected routes.
-    // This middleware should extract the token and set c.Locals("userID")
-    user.Use(JWTMiddleware)
+	user := api.Group("/user")
+	user.Post("/register", s.Register)
+	user.Post("/login", s.Login)
 
-    // Static 
-    user.Get("/profile", s.Profile)
-    user.Get("/logout", s.Logout)
-    
-    // Dynamic 
-    user.Get("/:id", s.GetUser)
-    user.Delete("/:id", s.DeleteUser)
-    user.Put("/:id", s.UpdateUser)
+	// Apply JWT middleware to protected routes.
+	// This middleware should extract the token and set c.Locals("userID")
+	user.Use(JWTMiddleware)
 
-    q := api.Group("/question")
-    q.Post("/", s.CreateQuestion)
-    q.Get("/", s.GetAllQuestions)
-    q.Get("/:id", s.GetQuestion)
-    q.Delete("/:id", s.DeleteQuestion)
+	// Static
+	user.Get("/profile", s.Profile)
+	user.Get("/logout", s.Logout)
+
+	// Dynamic
+	user.Get("/:id", s.GetUser)
+	user.Delete("/:id", s.DeleteUser)
+	user.Put("/:id", s.UpdateUser)
+
+	q := api.Group("/question")
+	q.Post("/", s.CreateQuestion)
+	q.Get("/", s.GetAllQuestions)
+	q.Get("/:id", s.GetQuestion)
+	q.Delete("/:id", s.DeleteQuestion)
 }
-
 
 // Start runs the Fiber app.
 func (s *Server) Start(address string) error {

@@ -17,11 +17,21 @@ type DBConfig struct {
 	SSLMode  string `mapstructure:"DB_SSLMODE"` // new field for SSL mode
 }
 
+type NotificationConfig struct {
+	Region        string `mapstructure:"AWS_REGION"`
+	AccessKey     string `mapstructure:"SNS_ACCESS_KEY"`
+	SecretKey     string `mapstructure:"SNS_SECRET_KEY"`
+	SessionToken  string `mapstructure:"SNS_SESSION_TOKEN"`
+	AdminTopicArn string `mapstructure:"ADMIN_TOPIC_ARN"`
+	UserTopicArn  string `mapstructure:"USER_TOPIC_ARN"`
+}
+
 // Config is the main configuration struct for your application.
 type Config struct {
-	DB            DBConfig `mapstructure:",squash"`
-	AppEnv        string   `mapstructure:"APP_ENV"`
-	ServerAddress string   `mapstructure:"SERVER_ADDRESS"`
+	DB            DBConfig           `mapstructure:",squash"`
+	AppEnv        string             `mapstructure:"APP_ENV"`
+	ServerAddress string             `mapstructure:"SERVER_ADDRESS"`
+	Notification  NotificationConfig `mapstructure:",squash"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -41,4 +51,3 @@ func LoadConfig() (*Config, error) {
 
 	return &config, nil
 }
-
