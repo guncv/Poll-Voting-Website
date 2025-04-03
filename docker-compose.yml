@@ -1,8 +1,10 @@
 version: "3.8"
 services:
   frontend:
-    build: ./frontend
-    container_name: myapp-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cv-c9-frontend
     ports:
       - "3000:3000"
     depends_on:
@@ -12,41 +14,16 @@ services:
       - app-network
 
   backend:
-    build: ./backend
-    container_name: myapp-backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cv-c9-backend
     ports:
       - "8080:8080"
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
     restart: always
     networks:
       - app-network
 
-  # db:
-  #   image: postgres:15
-  #   container_name: myapp-db
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: postgres
-  #     POSTGRES_PASSWORD: postgres
-  #     POSTGRES_DB: poll_app
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - db_data:/var/lib/postgresql/data
-  #     - ./backend/sql:/docker-entrypoint-initdb.d
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U postgres"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   networks:
-  #     - app-network
-
-# volumes:
-#   db_data:
-
 networks:
-  app-network:
+  cv-c9-network:
     driver: bridge

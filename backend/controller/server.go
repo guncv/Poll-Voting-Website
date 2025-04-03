@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	"github.com/gofiber/fiber/v2"
 	"github.com/guncv/Poll-Voting-Website/backend/config"
+	"github.com/guncv/Poll-Voting-Website/backend/db"
 	"github.com/guncv/Poll-Voting-Website/backend/log"
 	"github.com/guncv/Poll-Voting-Website/backend/repository"
 	"github.com/guncv/Poll-Voting-Website/backend/service"
@@ -16,6 +17,7 @@ import (
 type Server struct {
 	config             config.Config
 	db                 *gorm.DB
+	cache              db.CacheService
 	app                *fiber.App
 	logger             log.LoggerInterface
 	healthCheckService service.HealthCheckService
@@ -38,7 +40,7 @@ func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterfac
 }
 
 // NewServer creates a new Fiber server with injected dependencies.
-func NewServer(cfg config.Config, db *gorm.DB) *Server {
+func NewServer(cfg config.Config, db *gorm.DB, cacheService db.CacheService,) *Server {
 	logger := log.Initialize(cfg.AppEnv)
 	healthService := service.NewHealthCheckService()
 
@@ -55,6 +57,7 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	server := &Server{
 		config:             cfg,
 		db:                 db,
+		cache:              cacheService,
 		app:                fiber.New(),
 		logger:             logger,
 		healthCheckService: healthService,
@@ -63,7 +66,6 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 	}
 
 	server.setupRoutes()
-
 	return server
 }
 
@@ -71,6 +73,10 @@ func NewServer(cfg config.Config, db *gorm.DB) *Server {
 func (s *Server) setupRoutes() {
 	api := s.app.Group("/api")
 	api.Get("/health", s.HealthCheck)
+
+	cache := api.Group("/cache")
+	cache.Get("/:key", s.getCache)
+	cache.Post("/:key", s.setCache)
 
 	user := api.Group("/user")
 	user.Post("/register", s.Register)
