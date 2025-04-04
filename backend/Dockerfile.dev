@@ -1,0 +1,21 @@
+# Stage 1: Install & build
+FROM node:18 AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+# Stage 2: Dev mode server
+FROM node:18-alpine
+WORKDIR /app
+
+COPY --from=builder /app ./
+
+# Install all dependencies (not just production)
+RUN npm install
+
+EXPOSE 3000
+CMD ["npm", "run", "dev"]

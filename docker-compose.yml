@@ -1,9 +1,11 @@
+version: "3.8"
+
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: cv-c9-frontend
+    image: cv-c9-frontend
     ports:
       - "3000:3000"
     depends_on:
@@ -16,7 +18,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: cv-c9-backend
+    image: cv-c9-backend
     ports:
       - "8080:8080"
     restart: always

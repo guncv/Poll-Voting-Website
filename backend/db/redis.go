@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 
 	"github.com/guncv/Poll-Voting-Website/backend/config"
@@ -30,19 +31,25 @@ type RedisCacheService struct {
 
 func NewRedisCacheService(cfg config.Config) *RedisCacheService {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.RedisConfig.Host + ":" + cfg.RedisConfig.Port,
+		Addr:     fmt.Sprintf("%s:%s", cfg.RedisConfig.Host, cfg.RedisConfig.Port),
 		Password: cfg.RedisConfig.Password, // Set password if needed
 		DB:       cfg.RedisConfig.DB,       // Use default DB
 	})
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		panic("Failed to connect to Redis: " + err.Error())
+
+	ctx := context.Background()
+
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		panic("❌ Failed to connect to Redis: " + err.Error())
 	}
+
+	fmt.Println("✅ Redis connected successfully at", cfg.RedisConfig.Host+":"+cfg.RedisConfig.Port)
 
 	return &RedisCacheService{
 		rdb: rdb,
-		ctx: context.Background(),
+		ctx: ctx,
 	}
 }
+
 
 func (r *RedisCacheService) Get(key string) (string, error) {
 	val, err := r.rdb.Get(r.ctx, key).Result()

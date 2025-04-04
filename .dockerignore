@@ -22,3 +22,11 @@ backend/.idea
 # Ignore dev-specific files
 *.swp
 *.swo
+
+
+# Infra
+infra/private.tfvars
+infra/.terraform
+.terraform.lock.hcl
+.terraform.tfstate.*
+.terraform.tfstate.backup
