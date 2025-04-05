@@ -1,17 +1,29 @@
 package controller
 
-import "github.com/gofiber/fiber/v2"
+import (
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 func (s *Server) getCache(c *fiber.Ctx) error {
+	s.logger.InfoWithID(c.Context(), "[Controller: getCache] Called")
+
 	key := c.Params("key")
-	val, err := s.cache.Get(key)
+	date := time.Now().Format("2006-01-02")
+	fullKey := "question:" + date + ":" + key
+
+	result, err := s.cache.GetAllHash(fullKey)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString(err.Error())
+		s.logger.ErrorWithID(c.Context(), "[Controller: getCache] Redis error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	if val == "" {
-		return c.Status(fiber.StatusNotFound).SendString("Key not found")
+
+	if len(result) == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Key not found"})
 	}
-	return c.SendString(val)
+
+	return c.JSON(result)
 }
 
 func (s *Server) setCache(c *fiber.Ctx) error {

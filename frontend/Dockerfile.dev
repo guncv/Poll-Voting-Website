@@ -1,28 +1,18 @@
-# Stage 1: Build the app
-FROM node:18 AS builder
+FROM node:18
 
 WORKDIR /app
 
-# Copy only package files first to leverage Docker cache for dependency installation.
+# Copy only package files first for better cache usage
 COPY package*.json ./
+
+# Install dependencies (including devDeps for dev mode)
 RUN npm install
 
-# Now copy the rest of the source code.
+# Copy the rest of the app
 COPY . .
 
-# Build the production assets (adjust this if your build output is in a different folder)
-RUN npm run build
-
-# Optionally remove dev dependencies (if your build output doesn't need them)
-RUN npm prune --production
-
-# Stage 2: Production image
-FROM node:18-alpine
-
-WORKDIR /app
-
-# Copy the production-ready files from the builder stage.
-COPY --from=builder /app ./
-
+# Expose Next.js dev port
 EXPOSE 3000
-CMD ["npm", "start"]
+
+# Run the Next.js development server
+CMD ["npm", "run", "dev"]

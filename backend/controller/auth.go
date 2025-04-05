@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 // JWTMiddleware validates the access token and sets the user ID in the context.
 func JWTMiddleware(c *fiber.Ctx) error {
-	// Log that middleware is called.
 	fmt.Println("[JWTMiddleware] Called")
 
 	authHeader := c.Get("Authorization")
@@ -20,7 +20,6 @@ func JWTMiddleware(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Missing Authorization header"})
 	}
 
-	// Expect the header to be in the format "Bearer <token>"
 	var tokenStr string
 	_, err := fmt.Sscanf(authHeader, "Bearer %s", &tokenStr)
 	if err != nil || tokenStr == "" {
@@ -28,7 +27,6 @@ func JWTMiddleware(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token format"})
 	}
 
-	// Validate token (this is a simplified example)
 	token, err := util.ValidateAccessToken(tokenStr)
 	if err != nil || !token.Valid {
 		fmt.Println("[JWTMiddleware] Invalid or expired token:", err)
@@ -41,10 +39,16 @@ func JWTMiddleware(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token claims"})
 	}
 
-	// Assuming the user ID is stored in the "sub" claim.
 	userID := claims["sub"].(string)
 	fmt.Println("[JWTMiddleware] Setting userID in context:", userID)
+
+	// ✅ Inject userID into the request context for logging and downstream usage
+	ctx := context.WithValue(c.Context(), "userID", userID)
+	c.SetUserContext(ctx)
+
+	// You can still use Locals if needed for non-context use
 	c.Locals("userID", userID)
+
 	return c.Next()
 }
 
@@ -89,9 +93,9 @@ func (s *Server) Login(c *fiber.Ctx) error {
 		Name:     "refresh_token",
 		Value:    refreshToken,
 		HTTPOnly: true,
-		Secure:   true,    // Set true in production with HTTPS.
-		SameSite: "Lax",   // Adjust based on your needs.
-		Path:     "/refresh", 
+		Secure:   true,  // Set true in production with HTTPS.
+		SameSite: "Lax", // Adjust based on your needs.
+		Path:     "/refresh",
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
 	s.logger.InfoWithID(c.Context(), "[Controller: Login] Refresh token cookie set for user:", req.Email)
@@ -104,43 +108,50 @@ func (s *Server) Login(c *fiber.Ctx) error {
 
 // Refresh handles refreshing the access token using the refresh token stored in the cookie.
 func (s *Server) Refresh(c *fiber.Ctx) error {
-	s.logger.InfoWithID(c.Context(), "[Controller: Refresh] Called")
+	// Use the user-aware context from Fiber
+	ctx := c.UserContext()
+	s.logger.InfoWithID(ctx, "[Controller: Refresh] Called")
 
-	// Get the refresh token from cookie.
+	// Get the refresh token from cookie
 	refreshToken := c.Cookies("refresh_token")
 	if refreshToken == "" {
-		s.logger.ErrorWithID(c.Context(), "[Controller: Refresh] No refresh token provided")
+		s.logger.ErrorWithID(ctx, "[Controller: Refresh] No refresh token provided")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "No refresh token provided"})
 	}
 
-	// Validate the refresh token.
+	// Validate the refresh token
 	token, err := util.ValidateRefreshToken(refreshToken)
 	if err != nil || !token.Valid {
-		s.logger.ErrorWithID(c.Context(), "[Controller: Refresh] Invalid refresh token:", err)
+		s.logger.ErrorWithID(ctx, "[Controller: Refresh] Invalid refresh token:", err)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid refresh token"})
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		s.logger.ErrorWithID(c.Context(), "[Controller: Refresh] Invalid refresh token claims")
+		s.logger.ErrorWithID(ctx, "[Controller: Refresh] Invalid refresh token claims")
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid refresh token claims"})
 	}
 
 	userID := claims["sub"].(string)
-	s.logger.InfoWithID(c.Context(), "[Controller: Refresh] Refresh token validated for user:", userID)
+	s.logger.InfoWithID(ctx, "[Controller: Refresh] Refresh token validated for user:", userID)
 
-	// Generate new access token.
+	// ✅ Inject userID into context for downstream use
+	ctx = context.WithValue(ctx, "userID", userID)
+	c.SetUserContext(ctx)
+
+	// Generate new access token
 	newAccessToken, err := util.GenerateAccessToken(userID)
 	if err != nil {
-		s.logger.ErrorWithID(c.Context(), "[Controller: Refresh] Error generating new access token:", err)
+		s.logger.ErrorWithID(ctx, "[Controller: Refresh] Error generating new access token:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not generate new access token"})
 	}
-	s.logger.InfoWithID(c.Context(), "[Controller: Refresh] New access token generated for user:", userID)
+	s.logger.InfoWithID(ctx, "[Controller: Refresh] New access token generated for user:", userID)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"access_token": newAccessToken,
 	})
 }
+
 
 // Logout clears the refresh token cookie.
 func (s *Server) Logout(c *fiber.Ctx) error {
@@ -152,7 +163,7 @@ func (s *Server) Logout(c *fiber.Ctx) error {
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
-		Secure:   true,    // Set true in production with HTTPS.
+		Secure:   true, // Set true in production with HTTPS.
 		SameSite: "Lax",
 	})
 	s.logger.InfoWithID(c.Context(), "[Controller: Logout] Refresh token cookie cleared")

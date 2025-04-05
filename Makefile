@@ -75,6 +75,19 @@ tf-destroy:
 tf-output:
 	cd $(TERRAFORM_DIR) && terraform output
 
+# =======================
+# Environment Switching
+# =======================
+
+env-dev:
+	@echo "🔄 Switching to LOCAL .env..."
+	@cp backend/.env.local backend/.env
+	@echo "✅ Now using backend/.env.local → backend/.env"
+
+env-prod:
+	@echo "🔄 Switching to PRODUCTION .env..."
+	@cp backend/.env.prod backend/.env
+	@echo "✅ Now using backend/.env.prod → backend/.env"
 
 # =======================
 # Help Guide

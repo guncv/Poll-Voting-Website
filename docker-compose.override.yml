@@ -1,20 +1,49 @@
+version: "3.8"
+
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+    container_name: cv-c9-frontend
     volumes:
       - ./frontend:/app
+      - /app/node_modules
     environment:
       - NODE_ENV=development
+    ports:
+      - "3000:3000"
     command: npm run dev
+    depends_on:
+      - backend
+    networks:
+      - cv-c9-network
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile.dev
+    container_name: cv-c9-backend
     volumes:
       - ./backend:/app
+    env_file:
+      - ./backend/.env
     environment:
       - APP_ENV=development
     command: air
+    depends_on:
+      - redis
+    networks:
+      - cv-c9-network
+
+  redis:
+    image: redis:latest
+    container_name: local_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - cv-c9-network
+
+networks:
+  cv-c9-network:
+    driver: bridge
