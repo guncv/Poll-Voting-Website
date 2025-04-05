@@ -96,6 +96,8 @@ func (s *Server) setupRoutes() {
 	user.Put("/:id", s.UpdateUser)
 
 	q := api.Group("/question")
+	q.Use(JWTMiddleware) // ✅ add this line
+	
 	q.Post("/", s.CreateQuestion)
 	q.Get("/", s.GetAllQuestions)
 	q.Get("/:id", s.GetQuestion)

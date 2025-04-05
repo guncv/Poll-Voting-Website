@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/guncv/Poll-Voting-Website/backend/db"
 	"github.com/guncv/Poll-Voting-Website/backend/entity"
 	"github.com/guncv/Poll-Voting-Website/backend/log"
@@ -27,7 +28,7 @@ type IQuestionService interface {
 	VoteForQuestion(ctx context.Context, vote entity.VoteRequest) (entity.VoteResponse, error)
 
 	// New Redis cache logic
-	CreateQuestionCache(ctx context.Context, question entity.QuestionCache) error
+	CreateQuestionCache(ctx context.Context, q entity.CreateQuestionCacheRequest) (string, error)
 	GetQuestionCache(ctx context.Context, questionID string) (entity.QuestionCache, error)
 	DeleteQuestionCache(ctx context.Context, questionID string) error
 	GetAllTodayQuestionIDs(ctx context.Context) ([]string, error)
@@ -163,31 +164,51 @@ func (qs *QuestionService) VoteForQuestion(ctx context.Context, vote entity.Vote
 	}, nil
 }
 
-func (qs *QuestionService) CreateQuestionCache(ctx context.Context, q entity.QuestionCache) error {
+func (qs *QuestionService) CreateQuestionCache(ctx context.Context, req entity.CreateQuestionCacheRequest) (string, error) {
+	id := uuid.New().String()
 	date := time.Now().Format("2006-01-02")
-	key := "question:" + date + ":" + q.QuestionID
+	key := "question:" + date + ":" + id
+
 	qs.log.InfoWithID(ctx, "[Service: CreateQuestionCache] Called for key:", key)
 
-	data := map[string]string{
-		"question_id":         q.QuestionID,
-		"user_id":             q.UserID,
-		"text":                q.Text,
-		"first_choice":        q.FirstChoice,
-		"second_choice":       q.SecondChoice,
-		"first_choice_count":  fmt.Sprint(q.FirstChoiceCount),
-		"second_choice_count": fmt.Sprint(q.SecondChoiceCount),
-		"total_participants":  fmt.Sprint(q.TotalParticipants),
-		"milestones":          q.Milestones,
-		"follow_ups":          q.FollowUps,
-		"group_id":            q.GroupID,
-	}
-	if err := qs.cache.SetHash(key, data); err != nil {
-		qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Failed:", err)
-		return err
+	question := entity.QuestionCache{
+		QuestionID:        id,
+		UserID:            req.UserID,
+		Text:              req.Text,
+		FirstChoice:       req.FirstChoice,
+		SecondChoice:      req.SecondChoice,
+		TotalParticipants: 0,
+		FirstChoiceCount:  0,
+		SecondChoiceCount: 0,
+		Milestones:        req.Milestones,
+		FollowUps:         req.FollowUps,
+		GroupID:           req.GroupID,
 	}
 
-	// Add to today's question list
-	return qs.cache.AddToSet("questions:"+date, q.QuestionID)
+	data := map[string]string{
+		"question_id":         question.QuestionID,
+		"user_id":             question.UserID,
+		"text":                question.Text,
+		"first_choice":        question.FirstChoice,
+		"second_choice":       question.SecondChoice,
+		"first_choice_count":  "0",
+		"second_choice_count": "0",
+		"total_participants":  "0",
+		"milestones":          question.Milestones,
+		"follow_ups":          question.FollowUps,
+		"group_id":            question.GroupID,
+	}
+
+	if err := qs.cache.SetHash(key, data); err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Failed to store in Redis:", err)
+		return "", err
+	}
+
+	if err := qs.cache.AddToSet("questions:"+date, question.QuestionID); err != nil {
+		return "", err
+	}
+
+	return question.QuestionID, nil
 }
 
 func (qs *QuestionService) GetQuestionCache(ctx context.Context, questionID string) (entity.QuestionCache, error) {

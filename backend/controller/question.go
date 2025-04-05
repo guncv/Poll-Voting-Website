@@ -11,7 +11,7 @@ import (
 // CreateQuestion handles POST /question
 func (s *Server) CreateQuestion(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestion] Called")
-	
+
 	var req entity.CreateQuestionRequest
 	if err := c.BodyParser(&req); err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestion] Error parsing request body:", err)
@@ -39,7 +39,7 @@ func (s *Server) CreateQuestion(c *fiber.Ctx) error {
 // GetAllQuestions handles GET /question
 func (s *Server) GetAllQuestions(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: GetAllQuestions] Called")
-	
+
 	// Pass context to the service call if supported.
 	questions, err := s.questionService.GetAllQuestions(c.Context())
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *Server) GetAllQuestions(c *fiber.Ctx) error {
 // GetQuestion handles GET /question/:id
 func (s *Server) GetQuestion(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: GetQuestion] Called")
-	
+
 	idParam := c.Params("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
@@ -77,7 +77,7 @@ func (s *Server) GetQuestion(c *fiber.Ctx) error {
 // DeleteQuestion handles DELETE /question/:id
 func (s *Server) DeleteQuestion(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: DeleteQuestion] Called")
-	
+
 	idParam := c.Params("id")
 	id, err := strconv.Atoi(idParam)
 	if err != nil {
@@ -101,19 +101,32 @@ func (s *Server) DeleteQuestion(c *fiber.Ctx) error {
 func (s *Server) CreateQuestionCache(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestionCache] Called")
 
-	var req entity.QuestionCache
+	var req entity.CreateQuestionCacheRequest
 	if err := c.BodyParser(&req); err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestionCache] Failed to parse body:", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
 	}
 
-	if err := s.questionService.CreateQuestionCache(c.Context(), req); err != nil {
+	// ✅ Inject user ID from JWT context
+	userID, ok := c.Locals("userID").(string)
+	if !ok || userID == "" {
+		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestionCache] Missing user ID in context")
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	req.UserID = userID
+
+	// ⛏ Call the service
+	id, err := s.questionService.CreateQuestionCache(c.Context(), req)
+	if err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestionCache] Service error:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestionCache] Successfully cached question")
-	return c.SendStatus(fiber.StatusCreated)
+	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestionCache] Successfully cached question with ID:", id)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message":     "Question created successfully",
+		"question_id": id,
+	})
 }
 
 // GetQuestionCache handles GET /question/cache/:id
