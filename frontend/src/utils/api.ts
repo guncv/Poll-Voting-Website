@@ -58,3 +58,50 @@ export async function sendVote(pollId: string, choice: string) {
     setTimeout(() => resolve({ success: true }), 500);
   });
 }
+
+export async function loginUser(email: string, password: string): Promise<{ access_token: string }> {
+  const response = await fetch('http://localhost:8080/api/user/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+    credentials: 'include', // Ensures cookies (for the refresh token) are sent/received.
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'Login failed');
+  }
+
+  return data; // Expects an object containing { access_token: string }
+}
+
+export async function getProfile(accessToken: string): Promise<any> {
+  const response = await fetch('http://localhost:8080/api/user/profile', {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`, 
+      'Content-Type': 'application/json'
+    },
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to fetch profile');
+  }
+
+  return response.json();
+}
+
+export async function logoutUser(): Promise<void> {
+  const response = await fetch('http://localhost:8080/api/user/logout', {
+    method: 'GET', // or 'POST' if your endpoint is POST
+    credentials: 'include', // ensures the refresh token cookie is sent
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Logout failed');
+  }
+}
