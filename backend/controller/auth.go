@@ -11,7 +11,7 @@ import (
 
 // JWTMiddleware validates the access token and sets the user ID in the context.
 func JWTMiddleware(c *fiber.Ctx) error {
-	// Log that middleware is called.
+	// Log that the middleware is called.
 	fmt.Println("[JWTMiddleware] Called")
 
 	authHeader := c.Get("Authorization")
@@ -28,7 +28,7 @@ func JWTMiddleware(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Invalid token format"})
 	}
 
-	// Validate token (this is a simplified example)
+	// Validate the access token.
 	token, err := util.ValidateAccessToken(tokenStr)
 	if err != nil || !token.Valid {
 		fmt.Println("[JWTMiddleware] Invalid or expired token:", err)
@@ -89,9 +89,9 @@ func (s *Server) Login(c *fiber.Ctx) error {
 		Name:     "refresh_token",
 		Value:    refreshToken,
 		HTTPOnly: true,
-		Secure:   true,    // Set true in production with HTTPS.
-		SameSite: "Lax",   // Adjust based on your needs.
-		Path:     "/refresh", 
+		Secure:   true,              // Set true in production (HTTPS).
+		SameSite: "Lax",             // Or "Strict" based on your security needs.
+		Path:     "/refresh",        // Optionally restrict the path.
 		Expires:  time.Now().Add(7 * 24 * time.Hour),
 	})
 	s.logger.InfoWithID(c.Context(), "[Controller: Login] Refresh token cookie set for user:", req.Email)
@@ -146,19 +146,21 @@ func (s *Server) Refresh(c *fiber.Ctx) error {
 func (s *Server) Logout(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: Logout] Called")
 
-	// Clear the refresh token cookie by setting its value to empty and expiration to a past time.
+	// Clear the refresh token cookie by setting its value to empty
+	// and its expiration date to a time in the past.
 	c.Cookie(&fiber.Cookie{
 		Name:     "refresh_token",
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
-		Secure:   true,    // Set true in production with HTTPS.
+		Secure:   true,
 		SameSite: "Lax",
 	})
-	s.logger.InfoWithID(c.Context(), "[Controller: Logout] Refresh token cookie cleared")
 
+	s.logger.InfoWithID(c.Context(), "[Controller: Logout] Refresh token cookie cleared")
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{"message": "Logout successful"})
 }
+
 
 // Profile returns the authenticated user's profile.
 func (s *Server) Profile(c *fiber.Ctx) error {
