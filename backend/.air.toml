@@ -9,7 +9,7 @@ tmp_dir = "tmp"
 pre_cmd = ["echo 'hello air' > pre_cmd.txt"]
 
 # Updated command to build the Go binary; assuming main is in cmd/server or similar
-cmd = "go build -o ./tmp/main ./cmd"
+cmd = "go build -o tmp/main ./cmd"
 
 # Array of commands to run after ^C
 post_cmd = ["echo 'hello air' > post_cmd.txt"]
@@ -24,10 +24,11 @@ full_bin = "APP_ENV=dev APP_USER=air ./tmp/main"
 include_ext = ["go", "proto", "yaml", "yml", "tpl", "tmpl", "html"]
 
 # Ignore these filename extensions or directories.
-exclude_dir = ["assets", "tmp", "vendor", "frontend/node_modules", "pkg/api/proto", "api/proto"]
+exclude_dir = ["assets", "vendor", "frontend/node_modules"]
 
 # Watch these directories if you specified. Add directories you want to monitor.
-include_dir = ["cmd", "internal", "pkg"]
+include_dir = ["backend"]
+
 
 # Watch these files.
 include_file = []
@@ -48,7 +49,7 @@ follow_symlink = true
 log = "air.log"
 
 # Poll files for changes instead of using fsnotify.
-poll = false
+poll = true
 
 # Poll interval (defaults to the minimum interval of 500ms).
 poll_interval = 500 # ms

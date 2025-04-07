@@ -1,16 +1,15 @@
 package controller
 
 import (
-	"time"
-
 	"github.com/gofiber/fiber/v2"
+	"github.com/guncv/Poll-Voting-Website/backend/util"
 )
 
 func (s *Server) getCache(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: getCache] Called")
 
 	key := c.Params("key")
-	date := time.Now().Format("2006-01-02")
+	date := util.TodayDate()
 	fullKey := "question:" + date + ":" + key
 
 	result, err := s.cache.GetAllHash(fullKey)

@@ -74,16 +74,20 @@ func (s *Server) setupRoutes() {
 	api := s.app.Group("/api")
 	api.Get("/health", s.HealthCheck)
 
+	// ========================================
+	// Cache test routes
+	// ========================================
 	cache := api.Group("/cache")
 	cache.Get("/:key", s.getCache)
 	cache.Post("/:key", s.setCache)
 
+	// ========================================
+	// User routes
+	// ========================================
 	user := api.Group("/user")
 	user.Post("/register", s.Register)
 	user.Post("/login", s.Login)
 
-	// Apply JWT middleware to protected routes.
-	// This middleware should extract the token and set c.Locals("userID")
 	user.Use(JWTMiddleware)
 
 	// Static
@@ -95,21 +99,30 @@ func (s *Server) setupRoutes() {
 	user.Delete("/:id", s.DeleteUser)
 	user.Put("/:id", s.UpdateUser)
 
+	// ========================================
+	// Question routes
+	// ========================================
 	q := api.Group("/question")
-	q.Use(JWTMiddleware) // ✅ add this line
-	
+	q.Use(JWTMiddleware)
+
+	// ✅ Specific routes first
+	c := q.Group("/cache")
+	c.Post("/", s.CreateQuestionCache)
+	c.Get("/", s.GetAllTodayQuestionIDs)
+	c.Get("/:id", s.GetQuestionCache)
+	c.Delete("/:id", s.DeleteQuestionCache)
+
+	// ✅ Then general question routes
 	q.Post("/", s.CreateQuestion)
 	q.Get("/", s.GetAllQuestions)
+
+	// ⚠️ Parameterized routes last
 	q.Get("/:id", s.GetQuestion)
 	q.Delete("/:id", s.DeleteQuestion)
-	
-	q.Post("/cache", s.CreateQuestionCache)
-	q.Get("/cache/:id", s.GetQuestionCache)
-	q.Delete("/cache/:id", s.DeleteQuestionCache)
-	q.Get("/cache/today", s.GetAllTodayQuestionIDs)
-	q.Post("/vote", s.VoteForQuestion)
 
+	q.Post("/vote", s.VoteForQuestion)
 }
+
 
 // Start runs the Fiber app.
 func (s *Server) Start(address string) error {
