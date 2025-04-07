@@ -29,9 +29,9 @@ type IQuestionService interface {
 
 	// New Redis cache logic
 	CreateQuestionCache(ctx context.Context, q entity.CreateQuestionCacheRequest) (string, error)
-	GetQuestionCache(ctx context.Context, questionID string) (entity.QuestionCache, error)
+	GetQuestionCache(ctx context.Context, questionID string) (model.QuestionCache, error)
 	DeleteQuestionCache(ctx context.Context, questionID string) error
-	GetAllTodayQuestionIDs(ctx context.Context) ([]string, error)
+	GetAllTodayQuestions(ctx context.Context) ([]model.QuestionCache, error)
 }
 
 type QuestionService struct {
@@ -115,7 +115,7 @@ func (qs *QuestionService) DeleteQuestion(ctx context.Context, id int) error {
 }
 
 func (qs *QuestionService) VoteForQuestion(ctx context.Context, vote entity.VoteRequest) (entity.VoteResponse, error) {
-	date := time.Now().Format("2006-01-02")
+	date := util.TodayDate()
 	qs.log.InfoWithID(ctx, "[Service: VoteForQuestion] Called for qid:", vote.QuestionID)
 
 	voteKey := "voted:" + date + ":" + vote.QuestionID
@@ -166,37 +166,24 @@ func (qs *QuestionService) VoteForQuestion(ctx context.Context, vote entity.Vote
 
 func (qs *QuestionService) CreateQuestionCache(ctx context.Context, req entity.CreateQuestionCacheRequest) (string, error) {
 	id := uuid.New().String()
-	date := time.Now().Format("2006-01-02")
+	date := util.TodayDate()
 	key := "question:" + date + ":" + id
 
 	qs.log.InfoWithID(ctx, "[Service: CreateQuestionCache] Called for key:", key)
 
-	question := entity.QuestionCache{
-		QuestionID:        id,
-		UserID:            req.UserID,
-		Text:              req.Text,
-		FirstChoice:       req.FirstChoice,
-		SecondChoice:      req.SecondChoice,
-		TotalParticipants: 0,
-		FirstChoiceCount:  0,
-		SecondChoiceCount: 0,
-		Milestones:        req.Milestones,
-		FollowUps:         req.FollowUps,
-		GroupID:           req.GroupID,
-	}
-
+	// Build data as map for Redis
 	data := map[string]string{
-		"question_id":         question.QuestionID,
-		"user_id":             question.UserID,
-		"text":                question.Text,
-		"first_choice":        question.FirstChoice,
-		"second_choice":       question.SecondChoice,
+		"question_id":         id,
+		"user_id":             req.UserID,
+		"text":                req.Text,
+		"first_choice":        req.FirstChoice,
+		"second_choice":       req.SecondChoice,
 		"first_choice_count":  "0",
 		"second_choice_count": "0",
 		"total_participants":  "0",
-		"milestones":          question.Milestones,
-		"follow_ups":          question.FollowUps,
-		"group_id":            question.GroupID,
+		"milestones":          req.Milestones,
+		"follow_ups":          req.FollowUps,
+		"group_id":            req.GroupID,
 	}
 
 	if err := qs.cache.SetHash(key, data); err != nil {
@@ -204,25 +191,25 @@ func (qs *QuestionService) CreateQuestionCache(ctx context.Context, req entity.C
 		return "", err
 	}
 
-	if err := qs.cache.AddToSet("questions:"+date, question.QuestionID); err != nil {
+	if err := qs.cache.AddToSet("questions:"+date, id); err != nil {
 		return "", err
 	}
 
-	return question.QuestionID, nil
+	return id, nil
 }
 
-func (qs *QuestionService) GetQuestionCache(ctx context.Context, questionID string) (entity.QuestionCache, error) {
-	date := time.Now().Format("2006-01-02")
+func (qs *QuestionService) GetQuestionCache(ctx context.Context, questionID string) (model.QuestionCache, error) {
+	date := util.TodayDate()
 	key := "question:" + date + ":" + questionID
 	qs.log.InfoWithID(ctx, "[Service: GetQuestionCache] Called for key:", key)
 
 	data, err := qs.cache.GetAllHash(key)
 	if err != nil {
 		qs.log.ErrorWithID(ctx, "[Service: GetQuestionCache] Failed:", err)
-		return entity.QuestionCache{}, err
+		return model.QuestionCache{}, err
 	}
 
-	return entity.QuestionCache{
+	return model.QuestionCache{
 		QuestionID:        data["question_id"],
 		UserID:            data["user_id"],
 		Text:              data["text"],
@@ -238,15 +225,46 @@ func (qs *QuestionService) GetQuestionCache(ctx context.Context, questionID stri
 }
 
 func (qs *QuestionService) DeleteQuestionCache(ctx context.Context, questionID string) error {
-	date := time.Now().Format("2006-01-02")
+	date := util.TodayDate()
 	key := "question:" + date + ":" + questionID
 	qs.log.InfoWithID(ctx, "[Service: DeleteQuestionCache] Deleting key:", key)
 	return qs.cache.DeleteKey(key)
 }
 
-func (qs *QuestionService) GetAllTodayQuestionIDs(ctx context.Context) ([]string, error) {
-	date := time.Now().Format("2006-01-02")
+func (qs *QuestionService) GetAllTodayQuestions(ctx context.Context) ([]model.QuestionCache, error) {
+	date := util.TodayDate()
 	key := "questions:" + date
-	qs.log.InfoWithID(ctx, "[Service: GetAllTodayQuestionIDs] Listing from key:", key)
-	return qs.cache.GetSetMembers(key)
+	qs.log.InfoWithID(ctx, "[Service: GetAllTodayQuestions] Listing from key:", key)
+
+	ids, err := qs.cache.GetSetMembers(key)
+	if err != nil {
+		return nil, err
+	}
+
+	var result []model.QuestionCache
+	for _, id := range ids {
+		fullKey := "question:" + date + ":" + id
+		data, err := qs.cache.GetAllHash(fullKey)
+		if err != nil {
+			qs.log.ErrorWithID(ctx, "[Service: GetAllTodayQuestions] Failed to fetch for key:", fullKey)
+			continue
+		}
+
+		question := model.QuestionCache{
+			QuestionID:        data["question_id"],
+			UserID:            data["user_id"],
+			Text:              data["text"],
+			FirstChoice:       data["first_choice"],
+			SecondChoice:      data["second_choice"],
+			FirstChoiceCount:  util.AtoiOrZero(data["first_choice_count"]),
+			SecondChoiceCount: util.AtoiOrZero(data["second_choice_count"]),
+			TotalParticipants: util.AtoiOrZero(data["total_participants"]),
+			Milestones:        data["milestones"],
+			FollowUps:         data["follow_ups"],
+			GroupID:           data["group_id"],
+		}
+		result = append(result, question)
+	}
+
+	return result, nil
 }

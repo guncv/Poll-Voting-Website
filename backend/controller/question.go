@@ -160,19 +160,20 @@ func (s *Server) DeleteQuestionCache(c *fiber.Ctx) error {
 func (s *Server) GetAllTodayQuestionIDs(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: GetAllTodayQuestionIDs] Called")
 
-	ids, err := s.questionService.GetAllTodayQuestionIDs(c.Context())
+	questions, err := s.questionService.GetAllTodayQuestions(c.Context())
 	if err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: GetAllTodayQuestionIDs] Service error:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{"question_ids": ids})
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{"questions": questions})
 }
 
 // VoteForQuestion handles POST /question/vote
 func (s *Server) VoteForQuestion(c *fiber.Ctx) error {
 	s.logger.InfoWithID(c.Context(), "[Controller: VoteForQuestion] Called")
 
+	// ✅ Inject user ID from JWT context
 	var req entity.VoteRequest
 	if err := c.BodyParser(&req); err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: VoteForQuestion] Failed to parse body:", err)

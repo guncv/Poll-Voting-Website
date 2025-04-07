@@ -84,42 +84,60 @@ func NewServer(cfg config.Config, db *gorm.DB, cacheService db.CacheService) *Se
 
     return server
 }
-
 // setupRoutes defines all routes for the application.
 func (s *Server) setupRoutes() {
     api := s.app.Group("/api")
     api.Get("/health", s.HealthCheck)
 
+    // ========================================
+    // User routes
+    // ========================================
     user := api.Group("/user")
     user.Post("/register", s.Register)
     user.Post("/login", s.Login)
+
+    user.Use(JWTMiddleware)
+
+    // Static
+    user.Get("/profile", s.Profile)
     user.Get("/logout", s.Logout)
 
-    // Apply JWT middleware to protected routes.
-    user.Use(JWTMiddleware)
-    user.Get("/profile", s.Profile)
+    // Dynamic
     user.Get("/:id", s.GetUser)
     user.Delete("/:id", s.DeleteUser)
     user.Put("/:id", s.UpdateUser)
 
-    // Protect question routes with JWT too
+    // ========================================
+    // Question routes
+    // ========================================
     q := api.Group("/question")
     q.Use(JWTMiddleware)
+
+    // General question routes
     q.Post("/", s.CreateQuestion)
     q.Get("/", s.GetAllQuestions)
+
+    // Specific routes
+    c := q.Group("/cache")
+    c.Post("/", s.CreateQuestionCache)
+    c.Get("/", s.GetAllTodayQuestionIDs)
+    c.Get("/:id", s.GetQuestionCache)
+    c.Delete("/:id", s.DeleteQuestionCache)
+
+    // Parameterized routes
     q.Get("/:id", s.GetQuestion)
     q.Delete("/:id", s.DeleteQuestion)
 
-    q.Post("/cache", s.CreateQuestionCache)
-    q.Get("/cache/:id", s.GetQuestionCache)
-    q.Delete("/cache/:id", s.DeleteQuestionCache)
-    q.Get("/cache/today", s.GetAllTodayQuestionIDs)
     q.Post("/vote", s.VoteForQuestion)
 
+    // ========================================
+    // Cache test routes
+    // ========================================
     cache := api.Group("/cache")
     cache.Get("/:key", s.getCache)
     cache.Post("/:key", s.setCache)
 }
+
 
 // Start runs the Fiber app.
 func (s *Server) Start(address string) error {

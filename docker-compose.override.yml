@@ -29,7 +29,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - APP_ENV=development
+      - APP_ENV=dev
     command: air
     depends_on:
       - redis
