@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"github.com/guncv/Poll-Voting-Website/backend/controller"
 	"github.com/guncv/Poll-Voting-Website/backend/config"
+	"github.com/guncv/Poll-Voting-Website/backend/controller"
 	"github.com/guncv/Poll-Voting-Website/backend/db"
 )
 
@@ -14,8 +14,10 @@ func main() {
 		log.Fatal("cannot load config:", err)
 	}
 
-	db := db.InitDB(*config)
-	server := controller.NewServer(*config, db)
+	database := db.InitDB(*config)
+	cacheService := db.NewRedisCacheService(*config)
+
+	server := controller.NewServer(*config, database, cacheService)
 
 	if err := server.Start(config.ServerAddress); err != nil {
 		log.Fatal("cannot start server:", err)

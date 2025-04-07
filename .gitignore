@@ -1,2 +1,14 @@
 # Ignore backend .env file
-backend/.env
+backend/.env*
+infra/private.tfvars
+infra/.terraform
+infra/.terraform.lock.hcl
+infra/.terraform.tfstate.*
+*/terraform.tfstate
+*/terraform.tfstate.backup
+infra/.terraform.tfstate.backup
+infra/*
+
+frontend/pnpm-lock.yaml
+frontend/package-lock.json
+frontend/package.json

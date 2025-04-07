@@ -7,6 +7,7 @@ import (
     "github.com/gofiber/fiber/v2"
     "github.com/gofiber/fiber/v2/middleware/cors" // <--- import the cors middleware
     "github.com/guncv/Poll-Voting-Website/backend/config"
+    "github.com/guncv/Poll-Voting-Website/backend/db"
     "github.com/guncv/Poll-Voting-Website/backend/log"
     "github.com/guncv/Poll-Voting-Website/backend/repository"
     "github.com/guncv/Poll-Voting-Website/backend/service"
@@ -17,11 +18,12 @@ import (
 type Server struct {
     config             config.Config
     db                 *gorm.DB
+    cache              db.CacheService
     app                *fiber.App
     logger             log.LoggerInterface
     healthCheckService service.HealthCheckService
     userService        service.UserService
-    questionService    service.QuestionService
+    questionService    service.IQuestionService
 }
 
 func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterface) *sns.Client {
@@ -38,33 +40,38 @@ func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterfac
 }
 
 // NewServer creates a new Fiber server with injected dependencies.
-func NewServer(cfg config.Config, db *gorm.DB) *Server {
+func NewServer(cfg config.Config, db *gorm.DB, cacheService db.CacheService) *Server {
     logger := log.Initialize(cfg.AppEnv)
     healthService := service.NewHealthCheckService()
 
+    // Notification
     notificationClient := NewNotificationClient(cfg.Notification, logger)
     notificationRepo := repository.NewNotificationRepository(notificationClient, cfg, logger)
     notificationService := service.NewNotificationService(notificationRepo, logger)
 
+    // User
     userRepo := repository.NewUserRepository(db, logger)
     userService := service.NewUserService(userRepo, logger, notificationService)
 
+    // Question
     questionRepo := repository.NewQuestionRepository(db, logger)
-    questionService := service.NewQuestionService(questionRepo, logger)
+    // IMPORTANT: pass cacheService to the question service here
+    questionService := service.NewQuestionService(questionRepo, cacheService, logger)
 
     // Create Fiber instance
     app := fiber.New()
 
     // Enable CORS
     app.Use(cors.New(cors.Config{
-        // Change http://localhost:3000 to wherever your frontend is running
-        AllowOrigins:     "http://localhost:3000",
+        AllowOrigins:     "http://localhost:3000", // or your frontend URL
         AllowCredentials: true,
     }))
 
+    // Build the Server
     server := &Server{
         config:             cfg,
         db:                 db,
+        cache:              cacheService,
         app:                app,
         logger:             logger,
         healthCheckService: healthService,
@@ -87,23 +94,31 @@ func (s *Server) setupRoutes() {
     user.Post("/register", s.Register)
     user.Post("/login", s.Login)
     user.Get("/logout", s.Logout)
+
     // Apply JWT middleware to protected routes.
     user.Use(JWTMiddleware)
-
-    // Static
     user.Get("/profile", s.Profile)
-
-
-    // Dynamic
     user.Get("/:id", s.GetUser)
     user.Delete("/:id", s.DeleteUser)
     user.Put("/:id", s.UpdateUser)
 
+    // Protect question routes with JWT too
     q := api.Group("/question")
+    q.Use(JWTMiddleware)
     q.Post("/", s.CreateQuestion)
     q.Get("/", s.GetAllQuestions)
     q.Get("/:id", s.GetQuestion)
     q.Delete("/:id", s.DeleteQuestion)
+
+    q.Post("/cache", s.CreateQuestionCache)
+    q.Get("/cache/:id", s.GetQuestionCache)
+    q.Delete("/cache/:id", s.DeleteQuestionCache)
+    q.Get("/cache/today", s.GetAllTodayQuestionIDs)
+    q.Post("/vote", s.VoteForQuestion)
+
+    cache := api.Group("/cache")
+    cache.Get("/:key", s.getCache)
+    cache.Post("/:key", s.setCache)
 }
 
 // Start runs the Fiber app.
