@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { InputField } from './InputField';
 import FormLayout from './FormLayout';
 import { buttonStyle, formStyle, linkStyle } from './AuthenticationStyle';
+
+// We only need loginUser from real calls
 import { loginUser } from '../utils/api';
 
 export default function LoginForm() {
@@ -12,7 +14,6 @@ export default function LoginForm() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [accessToken, setAccessToken] = useState(''); // Holds the access token in memory
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,22 +25,15 @@ export default function LoginForm() {
 
     try {
       console.log('[LoginForm] Sending login request for:', username);
-      
-      // Call the login API utility
+
       const data = await loginUser(username, password);
-      
       console.log('[LoginForm] Login successful:', data);
-      
-      // Store the access token in component state (optional in memory)
-      setAccessToken(data.access_token);
 
-      // Also store the token in local storage
-      localStorage.setItem('accessToken', data.access_token);
-
-      // Navigate to the home page (or wherever you like)
+      // data.access_token is automatically stored in local storage
+      // by loginUser calling setAccessToken. So you can just route to /
       router.push('/');
     } catch (err: any) {
-      console.error('[LoginForm] Login error:', err.message);
+      console.warn('[LoginForm] Login error:', err.message);
       setError(err.message || 'Login failed');
     }
   };

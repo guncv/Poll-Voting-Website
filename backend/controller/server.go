@@ -118,17 +118,24 @@ func (s *Server) setupRoutes() {
     q.Get("/", s.GetAllQuestions)
 
     // Specific routes
-    c := q.Group("/cache")
-    c.Post("/", s.CreateQuestionCache)
-    c.Get("/", s.GetAllTodayQuestionIDs)
-    c.Get("/:id", s.GetQuestionCache)
-    c.Delete("/:id", s.DeleteQuestionCache)
+    // General question routes
+    q.Post("/", s.CreateQuestion)
+    q.Get("/", s.GetAllQuestions)
+    q.Post("/vote", s.VoteForQuestion)
+
+    // Specific routes
+    q.Get("/last", s.GetLastArchivedQuestion)
 
     // Parameterized routes
     q.Get("/:id", s.GetQuestion)
     q.Delete("/:id", s.DeleteQuestion)
 
-    q.Post("/vote", s.VoteForQuestion)
+    // Cache routes
+    c := q.Group("/cache")
+    c.Post("/", s.CreateQuestionCache)
+    c.Get("/today", s.GetAllTodayQuestionIDs)
+    c.Get("/:id", s.GetQuestionCache)
+    c.Delete("/:id", s.DeleteQuestionCache)
 
     // ========================================
     // Cache test routes
