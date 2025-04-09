@@ -95,12 +95,12 @@ func (s *Server) setupRoutes() {
     user := api.Group("/user")
     user.Post("/register", s.Register)
     user.Post("/login", s.Login)
-
+    user.Get("/logout", s.Logout)
+    
     user.Use(JWTMiddleware)
 
     // Static
     user.Get("/profile", s.Profile)
-    user.Get("/logout", s.Logout)
 
     // Dynamic
     user.Get("/:id", s.GetUser)
