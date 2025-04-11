@@ -1,245 +1,377 @@
 'use client';
 
-import React, { useState } from 'react';
-
-// Import the mock calls for single/multiple
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  fetchQuestionByIDMock,
-  fetchAllQuestionsMock,
-  // Import the real call for last archived
-  fetchLastArchivedQuestion,
+  fetchCacheToday,
+  fetchCacheQuestionByID,
+  voteOnQuestion,
+  getProfile,
 } from '../../utils/api';
+import { buttonStyle } from '../../components/AuthenticationStyle';
+import styles from '../../components/VotingPage.module.css';
 
-interface Question {
+interface CacheQuestion {
   question_id: string;
-  archive_date: string;
-  question_text: string;
+  user_id: string;
+  text: string;
   first_choice: string;
   second_choice: string;
   total_participants: number;
   first_choice_count: number;
   second_choice_count: number;
-  created_by: string;
-  created_at: string;
+  milestones: string;
+  follow_ups: string;
+  group_id: string;
 }
 
-export default function QuestionPage() {
-  // We store an access token for the "popular" tab
-  const [accessToken, setAccessToken] = useState('');
+export default function VotingPage() {
+  const router = useRouter();
 
-  // Tab control
-  const [tab, setTab] = useState<'single' | 'multiple' | 'continuous' | 'popular'>('single');
+  const [tab, setTab] = useState<'random' | 'single' | 'all'>('random');
 
-  // SINGLE
+  const [userID, setUserID] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [profileError, setProfileError] = useState('');
+
+  const [randomQ, setRandomQ] = useState<CacheQuestion | null>(null);
+  const [randomError, setRandomError] = useState('');
+  const [hasVotedRandom, setHasVotedRandom] = useState(false);
+  const [randomSuccess, setRandomSuccess] = useState('');
+
   const [singleID, setSingleID] = useState('');
-  const [singleQuestion, setSingleQuestion] = useState<Question | null>(null);
+  const [singleQ, setSingleQ] = useState<CacheQuestion | null>(null);
   const [singleError, setSingleError] = useState('');
+  const [hasVotedSingle, setHasVotedSingle] = useState(false);
+  const [singleSuccess, setSingleSuccess] = useState('');
 
-  // MULTIPLE
-  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
-  const [multiError, setMultiError] = useState('');
+  const [allQuestions, setAllQuestions] = useState<CacheQuestion[]>([]);
+  const [allError, setAllError] = useState('');
 
-  // CONTINUOUS
-  const [continuousQuestions, setContinuousQuestions] = useState<Question[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [contError, setContError] = useState('');
+  useEffect(() => {
+    async function loadProfile() {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      try {
+        const userData = await getProfile();
+        setUserID(userData.user_id);
+        setUserEmail(userData.email);
+      } catch (err: any) {
+        setProfileError(err.message || 'Cannot load user profile.');
+        router.push('/login');
+      }
+    }
+    loadProfile();
+  }, [router]);
 
-  // POPULAR
-  const [popularQuestion, setPopularQuestion] = useState<Question | null>(null);
-  const [popError, setPopError] = useState('');
+  const headerStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '1rem',
+    backgroundColor: '#FF98A0', 
+    borderBottom: '1px solid #ccc',
+    zIndex: 1000,
+  };
 
-  // SINGLE (mock)
+  // =============== RANDOM TAB ===============
+  async function handleFetchRandom() {
+    setRandomError('');
+    setRandomQ(null);
+    setHasVotedRandom(false);
+    setRandomSuccess('');
+
+    if (!userID) {
+      setRandomError('No user ID found. Please log in first.');
+      return;
+    }
+    try {
+      const data = await fetchCacheToday(); 
+      if (!data.questions?.length) {
+        throw new Error('No questions found for today.');
+      }
+      const randIdx = Math.floor(Math.random() * data.questions.length);
+      setRandomQ(data.questions[randIdx]);
+    } catch (err: any) {
+      setRandomError(err.message || 'Error fetching random question.');
+    }
+  }
+
+  async function handleVoteRandom(isFirst: boolean) {
+    if (!randomQ) return;
+    setRandomSuccess('');
+    try {
+      const response = await voteOnQuestion({
+        question_id: randomQ.question_id,
+        is_first_choice: isFirst,
+        user_id: userID,
+      });
+      if (response.already_voted) {
+        setRandomError('You have already voted on this question!');
+      } else {
+        setHasVotedRandom(true);
+        setRandomSuccess('Vote success!');
+        const updated = await fetchCacheQuestionByID(randomQ.question_id);
+        setRandomQ(updated);
+      }
+    } catch (err: any) {
+      setRandomError(err.message || 'Error voting on random question.');
+    }
+  }
+
+  function renderRandomChoiceLabel(isFirst: boolean) {
+    if (!randomQ) return '';
+    const label = isFirst ? randomQ.first_choice : randomQ.second_choice;
+    const count = isFirst ? randomQ.first_choice_count : randomQ.second_choice_count;
+    if (!hasVotedRandom) {
+      return label;
+    }
+    return `${label} (${count})`;
+  }
+
+  // =============== SINGLE TAB ===============
   async function handleFetchSingle() {
-    setSingleQuestion(null);
     setSingleError('');
+    setSingleQ(null);
+    setHasVotedSingle(false);
+    setSingleSuccess('');
 
     if (!singleID) {
-      setSingleError('Please enter a question ID');
+      setSingleError('Please enter a question ID.');
       return;
     }
-
+    if (!userID) {
+      setSingleError('No user ID found. Please log in first.');
+      return;
+    }
     try {
-      const q = await fetchQuestionByIDMock(singleID);
-      setSingleQuestion(q);
+      const question = await fetchCacheQuestionByID(singleID);
+      setSingleQ(question);
     } catch (err: any) {
-      setSingleError(err.message || 'Error fetching single question');
+      setSingleError(err.message || 'Error fetching single question.');
     }
   }
 
-  // MULTIPLE (mock)
+  async function handleVoteSingle(isFirst: boolean) {
+    if (!singleQ) return;
+    setSingleSuccess('');
+    try {
+      const response = await voteOnQuestion({
+        question_id: singleQ.question_id,
+        is_first_choice: isFirst,
+        user_id: userID,
+      });
+      if (response.already_voted) {
+        setSingleError('You have already voted on this question!');
+      } else {
+        setHasVotedSingle(true);
+        setSingleSuccess('Vote success!');
+        const updated = await fetchCacheQuestionByID(singleQ.question_id);
+        setSingleQ(updated);
+      }
+    } catch (err: any) {
+      setSingleError(err.message || 'Error voting on single question.');
+    }
+  }
+
+  function renderSingleChoiceLabel(isFirst: boolean) {
+    if (!singleQ) return '';
+    const label = isFirst ? singleQ.first_choice : singleQ.second_choice;
+    const count = isFirst ? singleQ.first_choice_count : singleQ.second_choice_count;
+    if (!hasVotedSingle) {
+      return label;
+    }
+    return `${label} (${count})`;
+  }
+
+  // =============== ALL TAB ===============
   async function handleFetchAll() {
+    setAllError('');
     setAllQuestions([]);
-    setMultiError('');
 
-    try {
-      let questions = await fetchAllQuestionsMock();
-      // Sort ascending by date
-      questions.sort((a, b) =>
-        new Date(a.archive_date).getTime() - new Date(b.archive_date).getTime()
-      );
-      setAllQuestions(questions);
-    } catch (err: any) {
-      setMultiError(err.message || 'Error fetching all questions');
-    }
-  }
-
-  // CONTINUOUS (mock)
-  async function handleFetchForContinuous() {
-    setContinuousQuestions([]);
-    setCurrentIndex(0);
-    setContError('');
-
-    try {
-      let questions = await fetchAllQuestionsMock();
-      questions.sort((a, b) =>
-        new Date(a.archive_date).getTime() - new Date(b.archive_date).getTime()
-      );
-      setContinuousQuestions(questions);
-      setCurrentIndex(0);
-    } catch (err: any) {
-      setContError(err.message || 'Error fetching questions for continuous mode');
-    }
-  }
-
-  function handleAnswerQuestion() {
-    setCurrentIndex((prev) => prev + 1);
-  }
-
-  // POPULAR (real)
-  async function handleFetchPopular() {
-    setPopularQuestion(null);
-    setPopError('');
-
-    if (!accessToken) {
-      setPopError('No access token provided.');
+    if (!userID) {
+      setAllError('No user ID found. Please log in first.');
       return;
     }
-
     try {
-      const q = await fetchLastArchivedQuestion(accessToken);
-      setPopularQuestion(q);
+      const data = await fetchCacheToday();
+      if (!data.questions) {
+        throw new Error('Invalid response. Expected { "questions": [...] }.');
+      }
+      setAllQuestions(data.questions);
     } catch (err: any) {
-      setPopError(err.message || 'Error fetching most popular question');
+      setAllError(err.message || 'Error fetching all questions.');
     }
   }
 
-  // current question in continuous mode
-  const currentQuestion = continuousQuestions[currentIndex];
+  async function handleSelectQuestion(qid: string) {
+    setTab('single');
+    setSingleID(qid);
+    setSingleError('');
+    setSingleQ(null);
+    setHasVotedSingle(false);
+    setSingleSuccess('');
+    try {
+      const question = await fetchCacheQuestionByID(qid);
+      setSingleQ(question);
+    } catch (err: any) {
+      setSingleError(err.message || 'Error loading selected question.');
+    }
+  }
 
   return (
-    <div style={{ padding: '1rem' }}>
-      <h1>Question Demo Page</h1>
+    <div className={styles.container} style={{ paddingTop: '100px' }}>
+      <header style={headerStyle}>
+        <button style={buttonStyle} onClick={() => router.back()}>
+          Back
+        </button>
+        <button style={buttonStyle} onClick={() => router.push('/')}>
+          Home
+        </button>
+      </header>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label>Access Token (for "Popular" tab): </label>
-        <input
-          type="text"
-          placeholder="Paste your JWT"
-          value={accessToken}
-          onChange={(e) => setAccessToken(e.target.value)}
-          style={{ width: '300px' }}
-        />
+      <h1 style={{ marginBottom: '1rem' }}>Voting Page</h1>
+      <p>User Email: {userEmail || '(loading...)'}</p>
+      {profileError && <p className={styles.error}>{profileError}</p>}
+
+      <div className={styles.tabBar}>
+        <button style={buttonStyle} onClick={() => setTab('random')}>
+          Random
+        </button>
+        <button style={buttonStyle} onClick={() => setTab('single')}>
+          Single
+        </button>
+        <button style={buttonStyle} onClick={() => setTab('all')}>
+          All
+        </button>
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <button onClick={() => setTab('single')}>Single</button>
-        <button onClick={() => setTab('multiple')}>Multiple</button>
-        <button onClick={() => setTab('continuous')}>Continuous</button>
-        <button onClick={() => setTab('popular')}>Popular (Yesterday)</button>
-      </div>
+      {tab === 'random' && (
+        <div className={styles.tabContainer}>
+          <h2 style={{ textAlign: 'center' }}>Random Question</h2>
+          <button style={buttonStyle} onClick={handleFetchRandom}>
+            Fetch Random
+          </button>
+          {randomError && <p className={styles.error}>{randomError}</p>}
+          {randomSuccess && <p style={{ color: 'green', marginTop: '1rem' }}>{randomSuccess}</p>}
+          {randomQ && (
+            <div style={{ marginTop: '1rem' }}>
+              <p><strong>Question:</strong> {randomQ.text}</p>
+              <p><strong>Participants:</strong> {randomQ.total_participants}</p>
+              <p>
+                <strong>First Choice:</strong> {renderRandomChoiceLabel(true)}
+              </p>
+              <p>
+                <strong>Second Choice:</strong> {renderRandomChoiceLabel(false)}
+              </p>
+              <div
+                style={{
+                  marginTop: '1rem',
+                  display: 'flex',
+                  gap: '1rem',
+                  justifyContent: 'center',
+                }}
+              >
+                <button style={buttonStyle} onClick={() => handleVoteRandom(true)}>
+                  Vote {randomQ.first_choice}
+                </button>
+                <button style={buttonStyle} onClick={() => handleVoteRandom(false)}>
+                  Vote {randomQ.second_choice}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* SINGLE MODE (Mock) */}
       {tab === 'single' && (
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <h2>Single Question (Mock)</h2>
-          <p>Enter a question ID (e.g., "mock-q1", "mock-q2", or "mock-q3"):</p>
-          <input
-            type="text"
-            value={singleID}
-            onChange={(e) => setSingleID(e.target.value)}
-          />
-          <button onClick={handleFetchSingle}>Fetch</button>
-
-          {singleError && <p style={{ color: 'red' }}>{singleError}</p>}
-
-          {singleQuestion && (
+        <div className={styles.tabContainer}>
+          <h2 style={{ textAlign: 'center' }}>Single Question</h2>
+          <div
+            style={{
+              margin: '1rem auto',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              maxWidth: '500px',
+            }}
+          >
+            <label style={{ marginRight: '1rem', fontWeight: '500' }}>
+              Question ID:
+            </label>
+            <input
+              type="text"
+              placeholder="Enter question ID"
+              value={singleID}
+              onChange={(e) => setSingleID(e.target.value)}
+              style={{ width: '250px', textAlign: 'left', padding: '5px' }}
+            />
+          </div>
+          <button style={buttonStyle} onClick={handleFetchSingle}>
+            Fetch Single
+          </button>
+          {singleError && <p className={styles.error}>{singleError}</p>}
+          {singleSuccess && <p style={{ color: 'green', marginTop: '1rem' }}>{singleSuccess}</p>}
+          {singleQ && (
             <div style={{ marginTop: '1rem' }}>
-              <p><strong>ID:</strong> {singleQuestion.question_id}</p>
-              <p><strong>Date:</strong> {singleQuestion.archive_date}</p>
-              <p><strong>Text:</strong> {singleQuestion.question_text}</p>
-              <p><strong>1st Choice:</strong> {singleQuestion.first_choice}</p>
-              <p><strong>2nd Choice:</strong> {singleQuestion.second_choice}</p>
-              <p><strong>Participants:</strong> {singleQuestion.total_participants}</p>
-              <p><strong>1st Choice Count:</strong> {singleQuestion.first_choice_count}</p>
-              <p><strong>2nd Choice Count:</strong> {singleQuestion.second_choice_count}</p>
-              <p><strong>Created By:</strong> {singleQuestion.created_by}</p>
-              <p><strong>Created At:</strong> {singleQuestion.created_at}</p>
+              <p><strong>Question:</strong> {singleQ.text}</p>
+              <p><strong>Participants:</strong> {singleQ.total_participants}</p>
+              <p>
+                <strong>First Choice:</strong> {renderSingleChoiceLabel(true)}
+              </p>
+              <p>
+                <strong>Second Choice:</strong> {renderSingleChoiceLabel(false)}
+              </p>
+              <div
+                style={{
+                  marginTop: '1rem',
+                  display: 'flex',
+                  gap: '1rem',
+                  justifyContent: 'center',
+                }}
+              >
+                <button style={buttonStyle} onClick={() => handleVoteSingle(true)}>
+                  Vote {singleQ.first_choice}
+                </button>
+                <button style={buttonStyle} onClick={() => handleVoteSingle(false)}>
+                  Vote {singleQ.second_choice}
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* MULTIPLE MODE (Mock) */}
-      {tab === 'multiple' && (
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <h2>All Questions (Mock, Sorted by Date)</h2>
-          <button onClick={handleFetchAll}>Fetch All</button>
-          {multiError && <p style={{ color: 'red' }}>{multiError}</p>}
-
+      {tab === 'all' && (
+        <div className={styles.tabContainer}>
+          <h2 style={{ textAlign: 'center' }}>All Questions (Today)</h2>
+          <button style={buttonStyle} onClick={handleFetchAll}>
+            Fetch All
+          </button>
+          {allError && <p className={styles.error}>{allError}</p>}
           {allQuestions.length > 0 && (
-            <ul style={{ marginTop: '1rem' }}>
+            <div style={{ marginTop: '1rem' }}>
               {allQuestions.map((q) => (
-                <li key={q.question_id}>
-                  <strong>ID:</strong> {q.question_id} &nbsp;
-                  <strong>Date:</strong> {q.archive_date} &nbsp;
-                  <strong>Text:</strong> {q.question_text}
-                </li>
+                <div key={q.question_id} className={styles.card}>
+                  <p><strong>Question:</strong> {q.text}</p>
+                  <p><strong>Participants:</strong> {q.total_participants}</p>
+                  <p><strong>First Choice:</strong> {q.first_choice}</p>
+                  <p><strong>Second Choice:</strong> {q.second_choice}</p>
+                  <button
+                    style={{ ...buttonStyle, marginTop: '0.5rem' }}
+                    onClick={() => handleSelectQuestion(q.question_id)}
+                  >
+                    View &amp; Vote
+                  </button>
+                </div>
               ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {/* CONTINUOUS MODE (Mock) */}
-      {tab === 'continuous' && (
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <h2>Continuous (Mock)</h2>
-          <button onClick={handleFetchForContinuous}>Start</button>
-          {contError && <p style={{ color: 'red' }}>{contError}</p>}
-
-          {continuousQuestions.length > 0 && currentIndex < continuousQuestions.length && (
-            <div style={{ marginTop: '1rem' }}>
-              <p><strong>ID:</strong> {currentQuestion.question_id}</p>
-              <p><strong>Date:</strong> {currentQuestion.archive_date}</p>
-              <p><strong>Text:</strong> {currentQuestion.question_text}</p>
-              <button onClick={handleAnswerQuestion}>Answer & Next</button>
-            </div>
-          )}
-          {continuousQuestions.length > 0 && currentIndex >= continuousQuestions.length && (
-            <p>All questions answered!</p>
-          )}
-        </div>
-      )}
-
-      {/* POPULAR (REAL) */}
-      {tab === 'popular' && (
-        <div style={{ border: '1px solid #ccc', padding: '1rem' }}>
-          <h2>Most Popular (Yesterday) [REAL]</h2>
-          <button onClick={handleFetchPopular}>Get Last Archived</button>
-          {popError && <p style={{ color: 'red' }}>{popError}</p>}
-
-          {popularQuestion && (
-            <div style={{ marginTop: '1rem' }}>
-              <p><strong>ID:</strong> {popularQuestion.question_id}</p>
-              <p><strong>Date:</strong> {popularQuestion.archive_date}</p>
-              <p><strong>Text:</strong> {popularQuestion.question_text}</p>
-              <p><strong>1st Choice:</strong> {popularQuestion.first_choice}</p>
-              <p><strong>2nd Choice:</strong> {popularQuestion.second_choice}</p>
-              <p><strong>Participants:</strong> {popularQuestion.total_participants}</p>
-              <p><strong>1st Choice Count:</strong> {popularQuestion.first_choice_count}</p>
-              <p><strong>2nd Choice Count:</strong> {popularQuestion.second_choice_count}</p>
-              <p><strong>Created By:</strong> {popularQuestion.created_by}</p>
-              <p><strong>Created At:</strong> {popularQuestion.created_at}</p>
             </div>
           )}
         </div>
