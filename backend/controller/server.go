@@ -97,11 +97,11 @@ func (s *Server) setupRoutes() {
     user.Post("/login", s.Login)
     user.Get("/logout", s.Logout)
     
+
     user.Use(JWTMiddleware)
 
     // Static
     user.Get("/profile", s.Profile)
-
     // Dynamic
     user.Get("/:id", s.GetUser)
     user.Delete("/:id", s.DeleteUser)

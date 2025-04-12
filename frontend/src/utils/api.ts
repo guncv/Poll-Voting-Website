@@ -1,8 +1,5 @@
 import { apiRequest, setAccessToken, API_BASE } from './apiClient';
 
-export async function fetchLastArchivedQuestion(): Promise<any> {
-  return apiRequest(`${API_BASE}/question/last`, { method: 'GET' });
-}
 
 export async function loginUser(
   email: string,
@@ -57,6 +54,23 @@ export async function registerUser(
   }
   return data;
 }
+// {
+//   "question_id": "24f86bc5-932d-4dd7-9bee-da50304db65e",
+//   "archive_date": "2025-05-15T00:00:00Z",
+//   "question_text": "What's your favorite color?",
+//   "first_choice": "Blue",
+//   "second_choice": "Red",
+//   "total_participants": 10,
+//   "first_choice_count": 6,
+//   "second_choice_count": 4,
+//   "created_by": "cfc94d74-a6b4-416f-ad44-9ab86906b1ca",
+//   "created_at": "2025-04-07T08:05:01.86763Z"
+// }
+
+export async function fetchLastArchivedQuestion(): Promise<any> {
+  return apiRequest(`${API_BASE}/question/last`, { method: 'GET' });
+}
+
 
 export async function fetchCacheToday(): Promise<any> {
   return apiRequest(`${API_BASE}/question/cache/today`, { method: 'GET' });
