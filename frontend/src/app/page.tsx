@@ -1,77 +1,125 @@
 'use client';
 
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { getProfile, logoutUser } from '../utils/api';
+import { getProfile, logoutUser, fetchLastArchivedQuestion } from '../utils/api';
+import { buttonStyle } from '../components/AuthenticationStyle';
 
 export default function HomePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
+  const [lastQuestion, setLastQuestion] = useState<any>(null);
   const [error, setError] = useState('');
 
-  // Click handler for "Check Profile"
-  async function handleCheckProfile() {
-    setError('');
-    setProfile(null);
+  const containerStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: '100vh',
+    textAlign: 'center',
+  };
 
-    const token = localStorage.getItem('accessToken');
-    if (!token) {
-      setError('No access token found. Please login first.');
-      return;
+  // Style for the last archived question card
+  const questionCardStyle: React.CSSProperties = {
+    border: '1px solid #ccc',
+    padding: '1rem',
+    margin: '1rem 0',
+    borderRadius: '8px',
+    textAlign: 'left',
+    width: '80%',
+    maxWidth: '500px',
+  };
+
+  useEffect(() => {
+    async function loadProfile() {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      try {
+        const userData = await getProfile();
+        setProfile(userData);
+      } catch (err: any) {
+        console.error('[HomePage] Error fetching profile:', err.message);
+        router.push('/login');
+      }
     }
 
-    try {
-      const userData = await getProfile(token);
-      setProfile(userData);
-      console.log('[HomePage] Profile data:', userData);
-    } catch (err: any) {
-      console.error('[HomePage] Error fetching profile:', err.message);
-      setError(err.message || 'Failed to fetch profile');
+    async function loadLastQuestion() {
+      try {
+        const questionData = await fetchLastArchivedQuestion();
+        setLastQuestion(questionData);
+      } catch (err: any) {
+        console.error('[HomePage] Error fetching last archived question:', err.message);
+      }
     }
-  }
 
-  // Click handler for "Logout"
+    loadProfile();
+    loadLastQuestion();
+  }, [router]);
+
   async function handleLogout() {
     setError('');
     try {
-      // 1) Call the server to clear the refresh token cookie
       await logoutUser();
-      
-      // 2) Remove the access token from local storage or in-memory
-      localStorage.removeItem('accessToken'); 
-      
-      // 3) (Optional) Redirect or update UI to reflect logged-out state
+      localStorage.removeItem('accessToken');
       router.push('/login');
-      
-      console.log('Logout successful');
     } catch (err: any) {
+      console.error('[HomePage] Logout error:', err.message);
       setError(err.message || 'Logout failed');
     }
   }
 
+  if (error) {
+    return <p style={{ color: 'red' }}>{error}</p>;
+  }
+
+  if (!profile) {
+    return <p>Loading your profile...</p>;
+  }
+
   return (
-    <div>
-      <h1>Home</h1>
-      {/* Existing Login/Register buttons */}
-      <button onClick={() => router.push('/login')}>Login</button>
-      <button onClick={() => router.push('/register')}>Register</button>
+    <div style={containerStyle}>
+      <h1>Welcome to the Home Page</h1>
+      <p>
+        Hello, <strong>{profile.email ?? 'User'}</strong>!
+      </p>
 
-      {/* New button: Check Profile */}
-      <button onClick={handleCheckProfile}>Check Profile</button>
-
-      {/* New button: Logout */}
-      <button onClick={handleLogout}>Logout</button>
-
-      {/* Display errors if any */}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      {/* Show user profile data if available */}
-      {profile && (
-        <div style={{ marginTop: '1rem' }}>
-          <h2>User Profile</h2>
-          <pre>{JSON.stringify(profile, null, 2)}</pre>
+      {lastQuestion && (
+        <div style={questionCardStyle}>
+          <h2>Popular Question</h2>
+          <p>
+            <strong>Question From Date:</strong>{' '}
+            {new Date(lastQuestion.archive_date).toLocaleDateString()}
+          </p>
+          <p>
+            <strong>Question:</strong> {lastQuestion.question_text}
+          </p>
+          <p>
+            <strong>{lastQuestion.first_choice}:</strong> {lastQuestion.first_choice_count} votes
+          </p>
+          <p>
+            <strong>{lastQuestion.second_choice}:</strong> {lastQuestion.second_choice_count} votes
+          </p>
+          {/* <p>
+            <strong>Total Participants:</strong> {lastQuestion.total_participants}
+          </p> */}
         </div>
       )}
+
+      <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+        <button style={buttonStyle} onClick={() => router.push('/create')}>
+          Create Question
+        </button>
+        <button style={buttonStyle} onClick={() => router.push('/voting')}>
+          Go to Voting Page
+        </button>
+        <button style={buttonStyle} onClick={handleLogout}>
+          Logout
+        </button>
+      </div>
     </div>
   );
 }

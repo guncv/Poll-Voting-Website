@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/guncv/Poll-Voting-Website/backend/log"
 	"github.com/guncv/Poll-Voting-Website/backend/model"
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ type QuestionRepository interface {
 	FindByID(ctx context.Context, id int) (model.Question, error)
 	FindAll(ctx context.Context) ([]model.Question, error)
 	DeleteQuestion(ctx context.Context, id int) error
+	FindLastArchivedQuestion(ctx context.Context) (model.Question, error)
 }
 
 type questionRepository struct {
@@ -74,4 +76,21 @@ func (qr *questionRepository) DeleteQuestion(ctx context.Context, id int) error 
 	}
 	qr.log.InfoWithID(ctx, "[Repository: DeleteQuestion] Successfully deleted question with id:", id)
 	return nil
+}
+
+func (qr *questionRepository) FindLastArchivedQuestion(ctx context.Context) (model.Question, error) {
+	qr.log.InfoWithID(ctx, "[Repository: FindLastArchivedQuestion] Called")
+    var q model.Question
+    if err := qr.db.WithContext(ctx).
+        Order("archive_date DESC").
+        First(&q).Error; err != nil {
+		qr.log.ErrorWithID(ctx, "[Repository: FindLastArchivedQuestion] Error finding last archived question:", err)
+        return model.Question{}, err
+    }
+	if q.QuestionID == uuid.Nil {
+		qr.log.ErrorWithID(ctx, "[Repository: FindLastArchivedQuestion] No archived question found")
+		return model.Question{}, errors.New("no archived question found")
+	}
+	qr.log.InfoWithID(ctx, "[Repository: FindLastArchivedQuestion] Successfully found last archived question with id:", q.QuestionID)
+    return q, nil
 }

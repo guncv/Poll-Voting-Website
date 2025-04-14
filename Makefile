@@ -1,4 +1,15 @@
-.PHONY: info run build down clean logs restart ps rebuild
+TERRAFORM_DIR := infra
+AWS_ACCOUNT_ID := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw aws_account_id)
+AWS_REGION := us-west-2
+
+
+.PHONY: info run run-prod build build-prod down clean logs restart ps rebuild rebuild-prod \
+        tf-init tf-plan tf-apply tf-destroy tf-output help \
+        deploy-redis build-backend push-backend build-frontend push-frontend deploy-ecs
+
+# =======================
+# Docker (Dev)
+# =======================
 
 info:
 	docker compose ps
@@ -25,3 +36,158 @@ ps:
 	docker compose ps
 
 rebuild: clean build run
+
+# =======================
+# Docker (Prod)
+# =======================
+
+run-prod:
+	docker compose -f docker-compose.yml up
+
+build-prod:
+	docker compose -f docker-compose.yml build
+
+rebuild-prod:
+	docker compose -f docker-compose.yml down --remove-orphans && \
+	docker compose -f docker-compose.yml build && \
+	docker compose -f docker-compose.yml up
+
+# =======================
+# Terraform Commands
+# =======================
+
+TERRAFORM_DIR := infra
+
+# Step 1: Deploy Redis infrastructure (ElastiCache)
+deploy-redis:
+	cd $(TERRAFORM_DIR) && terraform apply \
+		-target=aws_elasticache_cluster.redis \
+		-target=aws_vpc.cv_c9_vpc \
+		-target=aws_subnet.private_1 \
+		-target=aws_subnet.private_2 \
+		-target=aws_subnet.public \
+		-target=aws_internet_gateway.igw \
+		-target=aws_nat_gateway.nat \
+		-target=aws_route_table.public_rt \
+		-target=aws_route_table.private_rt \
+		-target=aws_security_group.redis_sg \
+		-target=aws_elasticache_subnet_group.redis_subnet_group \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars" \
+		-auto-approve
+
+# Step 2: Push Docker Images
+deploy-ecr-login:
+	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+
+build-backend:
+	docker build -t cv-c9-backend ./backend
+
+push-backend: deploy-ecr-login
+	docker tag cv-c9-backend $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest
+	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest
+
+build-frontend:
+	docker build -t cv-c9-frontend ./frontend
+
+push-frontend: deploy-ecr-login
+	docker tag cv-c9-frontend $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest
+	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest
+	
+# Step 3: Deploy ECS Services
+deploy-ecs:
+	cd $(TERRAFORM_DIR) && terraform apply \
+		-target=aws_ecs_cluster.cv_c9_cluster \
+		-target=aws_ecr_repository.backend_repo \
+		-target=aws_ecr_repository.frontend_repo \
+		-target=aws_iam_role.ecs_task_execution_role \
+		-target=aws_iam_role_policy_attachment.ecs_task_execution_policy \
+		-target=aws_ecs_task_definition.backend_task \
+		-target=aws_ecs_task_definition.frontend_task \
+		-target=aws_ecs_service.backend_service \
+		-target=aws_ecs_service.frontend_service \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars" \
+		-auto-approve
+
+# Full infra control
+tf-init:
+	cd $(TERRAFORM_DIR) && terraform init
+
+tf-plan:
+	cd $(TERRAFORM_DIR) && terraform plan \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars"
+
+tf-apply:
+	cd $(TERRAFORM_DIR) && terraform apply \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars" \
+		-auto-approve
+
+tf-destroy:
+	cd $(TERRAFORM_DIR) && terraform destroy \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars" \
+		-auto-approve
+
+tf-output:
+	cd $(TERRAFORM_DIR) && terraform output
+
+# =======================
+# Environment Switching
+# =======================
+
+env-dev:
+	@echo "🔄 Switching to LOCAL .env..."
+	@cp backend/.env.local backend/.env
+	@echo "✅ Now using backend/.env.local → backend/.env"
+
+env-prod:
+	@echo "🔄 Switching to PRODUCTION .env..."
+	@cp backend/.env.prod backend/.env
+	@echo "✅ Now using backend/.env.prod → backend/.env"
+
+# =======================
+# Help Guide
+# =======================
+
+help:
+	@echo ""
+	@echo "🛠  Available Makefile Commands:"
+	@echo "-------------------------------"
+	@echo " Docker (Dev):"
+	@echo "   run           - Start containers (dev mode)"
+	@echo "   build         - Build all images (dev)"
+	@echo "   down          - Stop containers"
+	@echo "   clean         - Remove containers, images, volumes"
+	@echo "   logs          - Show logs"
+	@echo "   restart       - Restart containers"
+	@echo "   ps            - Show container status"
+	@echo "   rebuild       - Clean + Build + Run (dev)"
+	@echo ""
+	@echo " Docker (Prod):"
+	@echo "   run-prod      - Start containers (prod only)"
+	@echo "   build-prod    - Build images (prod)"
+	@echo "   rebuild-prod  - Clean + Build + Run (prod)"
+	@echo ""
+	@echo " Terraform (Modular):"
+	@echo "   deploy-redis     - Deploy Redis infra (ElastiCache, VPC)"
+	@echo "   build-backend    - Build Docker backend image"
+	@echo "   push-backend     - Push backend image to ECR"
+	@echo "   build-frontend   - Build frontend Docker image"
+	@echo "   push-frontend    - Push frontend image to ECR"
+	@echo "   deploy-ecs       - Deploy ECS Cluster + Tasks"
+	@echo ""
+	@echo " Terraform (Full):"
+	@echo "   tf-init       - Initialize Terraform"
+	@echo "   tf-plan       - Show execution plan"
+	@echo "   tf-apply      - Apply infrastructure (auto approve)"
+	@echo "   tf-destroy    - Destroy infrastructure (auto approve)"
+	@echo "   tf-output     - Show Terraform outputs"
+	@echo ""
+	@echo " Environment Switching:"
+	@echo "   env-dev       - Use development .env"
+	@echo "   env-prod      - Use production .env"
+	@echo ""
+	@echo " Pro Tip 💡: Use 'make help' to rediscover commands anytime!"

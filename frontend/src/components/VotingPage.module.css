@@ -1,0 +1,41 @@
+/* VotingPage.module.css */
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  
+  .tabBar {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    justify-content: center;
+  }
+  
+  .tabContainer {
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 1rem;
+    width: 100%;
+    margin-top: 1rem;
+    text-align: left;
+    background-color: #f9f9f9;
+  }
+  
+  .card {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background-color: #fff;
+  }
+  
+  .error {
+    color: red;
+    margin-top: 1rem;
+  }
+  

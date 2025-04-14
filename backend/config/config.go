@@ -26,12 +26,20 @@ type NotificationConfig struct {
 	UserTopicArn  string `mapstructure:"USER_TOPIC_ARN"`
 }
 
+type RedisConfig struct {
+	Host     string `mapstructure:"REDIS_HOST"`
+	Port     string `mapstructure:"REDIS_PORT"`
+	Password string `mapstructure:"REDIS_PASSWORD"`
+	DB       int    `mapstructure:"REDIS_DB"`
+}
+
 // Config is the main configuration struct for your application.
 type Config struct {
 	DB            DBConfig           `mapstructure:",squash"`
+	RedisConfig   RedisConfig        `mapstructure:",squash"`
+	Notification  NotificationConfig `mapstructure:",squash"`
 	AppEnv        string             `mapstructure:"APP_ENV"`
 	ServerAddress string             `mapstructure:"SERVER_ADDRESS"`
-	Notification  NotificationConfig `mapstructure:",squash"`
 }
 
 func LoadConfig() (*Config, error) {

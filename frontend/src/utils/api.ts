@@ -1,107 +1,113 @@
-import axios from 'axios';
-import { PollData } from '../types/pollData';
+import { apiRequest, setAccessToken, API_BASE } from './apiClient';
 
-const API_BASE = 'http://localhost:8000/api';
 
-// export async function fetchPoll(): Promise<PollData> {
-//   const { data } = await axios.get<PollData>(`${API_BASE}/poll/random`);
-//   return data;
-// }
-
-// export async function sendVote(pollId: string, choice: string) {
-//   const { data } = await axios.post(`${API_BASE}/poll/vote`, {
-//     pollId,
-//     choice,
-//   });
-//   return data;
-// }
-
-const MOCK_POLLS: PollData[] = [
-  {
-    id: 'poll1',
-    question: 'Which do you prefer for frontend development?',
-    choices: ['React', 'Vue'],
-  },
-  {
-    id: 'poll2',
-    question: 'Which programming language do you enjoy most?',
-    choices: ['TypeScript', 'JavaScript'],
-  },
-  {
-    id: 'poll3',
-    question: 'Favorite state management tool?',
-    choices: ['Redux', 'Zustand'],
-  },
-  {
-    id: 'poll4',
-    question: 'Best CSS solution for large apps?',
-    choices: ['Tailwind CSS', 'Styled Components'],
-  },
-  {
-    id: 'poll5',
-    question: 'Preferred backend stack?',
-    choices: ['Node.js', 'Django'],
-  },
-];
-
-export async function fetchPoll(): Promise<PollData> {
-  const random = MOCK_POLLS[Math.floor(Math.random() * MOCK_POLLS.length)];
-  console.log('[MOCK] Fetching poll...');
-  return new Promise((resolve) => {
-    setTimeout(() => resolve(random), 500);
-  });
-}
-
-export async function sendVote(pollId: string, choice: string) {
-  console.log(`[MOCK] Sending vote for ${choice} in poll ${pollId}`);
-  return new Promise((resolve) => {
-    setTimeout(() => resolve({ success: true }), 500);
-  });
-}
-
-export async function loginUser(email: string, password: string): Promise<{ access_token: string }> {
-  const response = await fetch('http://localhost:8080/api/user/login', {
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<{ access_token: string }> {
+  const res = await fetch(`${API_BASE}/user/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
-    credentials: 'include', // Ensures cookies (for the refresh token) are sent/received.
+    credentials: 'include', 
   });
 
-  const data = await response.json();
-
-  if (!response.ok) {
+  const data = await res.json();
+  if (!res.ok) {
     throw new Error(data.error || 'Login failed');
   }
 
-  return data; // Expects an object containing { access_token: string }
+  setAccessToken(data.access_token);
+  return data;
 }
 
-export async function getProfile(accessToken: string): Promise<any> {
-  const response = await fetch('http://localhost:8080/api/user/profile', {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`, 
-      'Content-Type': 'application/json'
-    },
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to fetch profile');
-  }
-
-  return response.json();
+export async function getProfile(): Promise<any> {
+  return apiRequest(`${API_BASE}/user/profile`, { method: 'GET' });
 }
 
 export async function logoutUser(): Promise<void> {
-  const response = await fetch('http://localhost:8080/api/user/logout', {
-    method: 'GET', // or 'POST' if your endpoint is POST
-    credentials: 'include', // ensures the refresh token cookie is sent
+  const res = await fetch(`${API_BASE}/user/logout`, {
+    method: 'GET',
+    credentials: 'include',
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
     throw new Error(errorData.error || 'Logout failed');
   }
+  setAccessToken('');
+}
+
+export async function registerUser(
+  email: string,
+  password: string
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/user/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+    credentials: 'include',
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Registration failed');
+  }
+  return data;
+}
+// {
+//   "question_id": "24f86bc5-932d-4dd7-9bee-da50304db65e",
+//   "archive_date": "2025-05-15T00:00:00Z",
+//   "question_text": "What's your favorite color?",
+//   "first_choice": "Blue",
+//   "second_choice": "Red",
+//   "total_participants": 10,
+//   "first_choice_count": 6,
+//   "second_choice_count": 4,
+//   "created_by": "cfc94d74-a6b4-416f-ad44-9ab86906b1ca",
+//   "created_at": "2025-04-07T08:05:01.86763Z"
+// }
+
+export async function fetchLastArchivedQuestion(): Promise<any> {
+  return apiRequest(`${API_BASE}/question/last`, { method: 'GET' });
+}
+
+
+export async function fetchCacheToday(): Promise<any> {
+  return apiRequest(`${API_BASE}/question/cache/today`, { method: 'GET' });
+}
+
+export async function fetchCacheQuestionByID(id: string): Promise<any> {
+  return apiRequest(`${API_BASE}/question/cache/${id}`, { method: 'GET' });
+}
+
+export async function voteOnQuestion(payload: {
+  question_id: string;
+  is_first_choice: boolean;
+  user_id: string;
+}): Promise<{
+  question_id: string;
+  total_participants: number;
+  first_choice_count: number;
+  second_choice_count: number;
+  newly_revealed_ids: string[];
+  already_voted: boolean;
+}> {
+  return apiRequest(`${API_BASE}/question/vote`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createQuestion(payload: {
+  text: string;
+  first_choice: string;
+  second_choice: string;
+  milestones?: string;
+  follow_ups?: string;
+  group_id?: string;
+}): Promise<any> {
+  return apiRequest(`${API_BASE}/question/cache`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
