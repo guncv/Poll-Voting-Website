@@ -11,12 +11,14 @@ type CreateQuestionCacheRequest struct {
 }
 
 type CreateQuestionRequest struct {
-	ArchiveDate  string `json:"archive_date"` // Expected format: "2006-01-02"
-	QuestionText string `json:"question_text"`
-	YesVotes     int    `json:"yes_votes"`
-	NoVotes      int    `json:"no_votes"`
-	TotalVotes   int    `json:"total_votes"`
-	CreatedBy    int    `json:"created_by"`
+	ArchiveDate       string `json:"archive_date"`      
+	QuestionText      string `json:"question_text"`
+	FirstChoice       string `json:"first_choice"`
+	SecondChoice      string `json:"second_choice"`
+	TotalParticipants int    `json:"total_participants"`
+	FirstChoiceCount  int    `json:"first_choice_count"`
+	SecondChoiceCount int    `json:"second_choice_count"`
+	CreatedBy         string `json:"created_by"`
 }
 
 type VoteRequest struct {

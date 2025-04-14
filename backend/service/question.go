@@ -18,11 +18,12 @@ import (
 
 // QuestionService defines business operations for questions.
 type IQuestionService interface {
-	// Existing
-	CreateQuestion(ctx context.Context, archiveDate time.Time, text string, yesVotes, noVotes, totalVotes, createdBy int) (model.Question, error)
+	//DB question logic
+	CreateQuestion(ctx context.Context,archiveDate time.Time,questionText string,firstChoice string,secondChoice string,totalParticipants int,firstChoiceCount int,secondChoiceCount int,createdBy uuid.UUID,) (model.Question, error)
 	GetQuestionByID(ctx context.Context, id int) (model.Question, error)
 	GetAllQuestions(ctx context.Context) ([]model.Question, error)
 	DeleteQuestion(ctx context.Context, id int) error
+	GetLastArchivedQuestion(ctx context.Context) (model.Question, error)
 
 	// Redis vote logic
 	VoteForQuestion(ctx context.Context, vote entity.VoteRequest) (entity.VoteResponse, error)
@@ -49,21 +50,27 @@ func NewQuestionService(r repository.QuestionRepository, cache db.CacheService, 
 	}
 }
 
-func (qs *QuestionService) CreateQuestion(ctx context.Context, archiveDate time.Time, text string, yesVotes, noVotes, totalVotes, createdBy int) (model.Question, error) {
+func (qs *QuestionService) CreateQuestion(ctx context.Context,archiveDate time.Time,questionText string,firstChoice string,secondChoice string,totalParticipants int,firstChoiceCount int,secondChoiceCount int,createdBy uuid.UUID,) (model.Question, error) {
+
 	qs.log.InfoWithID(ctx, "[Service: CreateQuestion] Called")
+
 	q := model.Question{
-		ArchiveDate:  archiveDate,
-		QuestionText: text,
-		YesVotes:     yesVotes,
-		NoVotes:      noVotes,
-		TotalVotes:   totalVotes,
-		CreatedBy:    createdBy,
+		ArchiveDate:       archiveDate,
+		QuestionText:      questionText,
+		FirstChoice:       firstChoice,
+		SecondChoice:      secondChoice,
+		TotalParticipants: totalParticipants,
+		FirstChoiceCount:  firstChoiceCount,
+		SecondChoiceCount: secondChoiceCount,
+		CreatedBy:         createdBy,
 	}
+
 	created, err := qs.repo.CreateQuestion(ctx, q)
 	if err != nil {
 		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error creating question:", err)
 		return model.Question{}, err
 	}
+
 	qs.log.InfoWithID(ctx, "[Service: CreateQuestion] Question created with id:", created.QuestionID)
 	return created, nil
 }
@@ -267,4 +274,15 @@ func (qs *QuestionService) GetAllTodayQuestions(ctx context.Context) ([]model.Qu
 	}
 
 	return result, nil
+}
+
+func (qs *QuestionService) GetLastArchivedQuestion(ctx context.Context) (model.Question, error) {
+    qs.log.InfoWithID(ctx, "[Service: GetLastArchivedQuestion] Called")
+    q, err := qs.repo.FindLastArchivedQuestion(ctx)
+    if err != nil {
+        qs.log.ErrorWithID(ctx, "[Service: GetLastArchivedQuestion] Error retrieving last archived question:", err)
+        return model.Question{}, err
+    }
+    qs.log.InfoWithID(ctx, "[Service: GetLastArchivedQuestion] Found last archived question with id:", q.QuestionID)
+    return q, nil
 }

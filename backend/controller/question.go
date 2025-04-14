@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/guncv/Poll-Voting-Website/backend/entity"
 )
 
@@ -19,14 +20,35 @@ func (s *Server) CreateQuestion(c *fiber.Ctx) error {
 	}
 	s.logger.InfoWithID(c.Context(), "[Controller: CreateQuestion] Request parsed for question:", req.QuestionText)
 
+	// Parse the archive date
 	archiveDate, err := time.Parse("2006-01-02", req.ArchiveDate)
 	if err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestion] Invalid archive_date format:", err)
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid archive_date format, use YYYY-MM-DD"})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid archive_date format, use YYYY-MM-DD",
+		})
 	}
 
-	// Pass context to the service call if your service supports it.
-	question, err := s.questionService.CreateQuestion(c.Context(), archiveDate, req.QuestionText, req.YesVotes, req.NoVotes, req.TotalVotes, req.CreatedBy)
+	// Parse created_by as a UUID
+	createdByUUID, err := uuid.Parse(req.CreatedBy)
+	if err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestion] Invalid created_by UUID:", err)
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid created_by (expected a UUID)",
+		})
+	}
+
+	question, err := s.questionService.CreateQuestion(
+		c.Context(),
+		archiveDate,
+		req.QuestionText,
+		req.FirstChoice,
+		req.SecondChoice,
+		req.TotalParticipants,
+		req.FirstChoiceCount,
+		req.SecondChoiceCount,
+		createdByUUID,
+	)
 	if err != nil {
 		s.logger.ErrorWithID(c.Context(), "[Controller: CreateQuestion] Service error:", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -187,4 +209,17 @@ func (s *Server) VoteForQuestion(c *fiber.Ctx) error {
 	}
 
 	return c.Status(fiber.StatusOK).JSON(resp)
+}
+
+func (s *Server) GetLastArchivedQuestion(c *fiber.Ctx) error {
+    s.logger.InfoWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Called")
+
+    q, err := s.questionService.GetLastArchivedQuestion(c.Context())
+    if err != nil {
+        s.logger.ErrorWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Service error:", err)
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+    }
+
+    s.logger.InfoWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Successfully retrieved question with id:", q.QuestionID)
+    return c.Status(fiber.StatusOK).JSON(q)
 }
