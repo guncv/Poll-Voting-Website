@@ -11,7 +11,6 @@ import {
 import { buttonStyle } from '../../components/AuthenticationStyle';
 import styles from '../../components/VotingPage.module.css';
 
-// Shape of a question in cache
 interface CacheQuestion {
   question_id: string;
   user_id: string;
@@ -21,7 +20,7 @@ interface CacheQuestion {
   total_participants: number;
   first_choice_count: number;
   second_choice_count: number;
-  milestones: string;  // e.g. "100:milestoneQ1,150:milestoneQ2"
+  milestones: string;
   follow_ups: string;
   group_id: string;
 }
@@ -29,13 +28,16 @@ interface CacheQuestion {
 export default function VotingPage() {
   const router = useRouter();
 
-  // Tabs: 'random', 'single', 'all'
-  const [tab, setTab] = useState<'random' | 'single' | 'all'>('random');
+  // Reordered: 'all', 'random', 'single'
+  const [tab, setTab] = useState<'all' | 'random' | 'single'>('all');
 
-  // Logged in user
   const [userID, setUserID] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [profileError, setProfileError] = useState('');
+
+  // ------------------ ALL TAB ------------------
+  const [allQuestions, setAllQuestions] = useState<CacheQuestion[]>([]);
+  const [allError, setAllError] = useState('');
 
   // ------------------ RANDOM TAB ------------------
   const [randomQ, setRandomQ] = useState<CacheQuestion | null>(null);
@@ -49,10 +51,6 @@ export default function VotingPage() {
   const [singleError, setSingleError] = useState('');
   const [hasVotedSingle, setHasVotedSingle] = useState(false);
   const [singleSuccess, setSingleSuccess] = useState('');
-
-  // ------------------ ALL TAB ------------------
-  const [allQuestions, setAllQuestions] = useState<CacheQuestion[]>([]);
-  const [allError, setAllError] = useState('');
 
   // ------------------ MILESTONE POPUP ------------------
   const [popupQuestion, setPopupQuestion] = useState<CacheQuestion | null>(null);
@@ -80,27 +78,24 @@ export default function VotingPage() {
   }, [router]);
 
   // ------------------ HELPER FUNCTIONS ------------------
-
-  // 1. Identify if a question is "main" (standalone or has milestones)
   function isMainQuestion(q: CacheQuestion) {
     const hasM = !!q.milestones?.trim();
     const hasF = !!q.follow_ups?.trim();
     const hasG = !!q.group_id?.trim();
 
-    // (A) Standalone main => everything empty
+    // (A) Standalone => no milestones, no follow_ups, no group_id
     if (!hasM && !hasF && !hasG) return true;
-    // (B) Main with milestones => q.milestones is non-empty
+    // (B) Has milestones => definitely main
     if (hasM) return true;
 
-    // Otherwise, it's likely a milestone question
+    // Otherwise, milestone question
     return false;
   }
 
-  // 2. Parse "milestones" field (e.g. "100:q1,150:q2") into array {score, question_id}
   function parseMilestones(mStr: string) {
     if (!mStr.trim()) return [];
-    return mStr.split(',').map((item) => {
-      const [scoreStr, qid] = item.split(':');
+    return mStr.split(',').map((part) => {
+      const [scoreStr, qid] = part.split(':');
       return {
         score: parseInt(scoreStr.trim(), 10) || 0,
         question_id: qid,
@@ -108,59 +103,79 @@ export default function VotingPage() {
     });
   }
 
-  // 3. Based on updated total_participants, find the largest milestone threshold <= that total
+  // Check if main question’s total_participants triggers a milestone
   async function checkAndShowMilestone(mainQ: CacheQuestion) {
-    const list = parseMilestones(mainQ.milestones);
-    if (!list.length) return; // no milestones
-    const currentVotes = mainQ.total_participants;
+    const arr = parseMilestones(mainQ.milestones);
+    if (!arr.length) return;
 
-    // Find the single largest threshold that is <= currentVotes
-    let best: null | {score: number, question_id: string} = null;
-    for (let m of list) {
-      if (m.score <= currentVotes) {
+    const total = mainQ.total_participants;
+    let best: null | { score: number; question_id: string } = null;
+    for (let m of arr) {
+      if (m.score <= total) {
         if (!best || m.score > best.score) {
           best = m;
         }
       }
     }
-    if (!best) return; // no milestone threshold reached
+    if (!best) return;
 
-    // Fetch that milestone question
     try {
-      const mQ = await fetchCacheQuestionByID(best.question_id);
-      setPopupQuestion(mQ);
+      const milestoneQ = await fetchCacheQuestionByID(best.question_id);
+      setPopupQuestion(milestoneQ);
       setShowPopup(true);
       setMilestoneMsg(`You've reached the milestone at ${best.score} votes!`);
-    } catch (err) {
-      console.error('Error fetching milestone question:', err);
+    } catch (err: any) {
+      console.error('Could not fetch milestone question:', err);
     }
   }
 
-  // --------------------------------------------------------------------------------
-  // RANDOM TAB
-  // --------------------------------------------------------------------------------
+  // ------------------ ALL TAB LOGIC ------------------
+  async function handleFetchAll() {
+    setAllError('');
+    setAllQuestions([]);
+
+    if (!userID) {
+      return; // avoid "No user ID" error
+    }
+    try {
+      const data = await fetchCacheToday();
+      if (!data.questions) {
+        throw new Error('Invalid response. Expected { "questions": [...] }.');
+      }
+      const mainOnly = data.questions.filter(isMainQuestion);
+      setAllQuestions(mainOnly);
+    } catch (err: any) {
+      setAllError(err.message || 'Error fetching all questions.');
+    }
+  }
+
+  // Clicking "View & Vote" from the All tab => sets tab=single & singleID
+  function handleSelectQuestion(qid: string) {
+    setTab('single');
+    setSingleID(qid);
+    setSingleError('');
+    setSingleQ(null);
+    setHasVotedSingle(false);
+    setSingleSuccess('');
+  }
+
+  // ------------------ RANDOM TAB LOGIC ------------------
   async function handleFetchRandom() {
     setRandomError('');
     setRandomQ(null);
     setHasVotedRandom(false);
     setRandomSuccess('');
 
-    if (!userID) {
-      setRandomError('No user ID found. Please log in first.');
-      return;
-    }
+    if (!userID) return; // skip if user isn't loaded
     try {
       const data = await fetchCacheToday();
       if (!data.questions?.length) {
         throw new Error('No questions found for today.');
       }
-
-      // Only pick from "main" questions
       const mainQs = data.questions.filter(isMainQuestion);
       if (!mainQs.length) {
         throw new Error('No main questions found (all are milestones?).');
       }
-
       const randIdx = Math.floor(Math.random() * mainQs.length);
       setRandomQ(mainQs[randIdx]);
     } catch (err: any) {
@@ -182,12 +197,11 @@ export default function VotingPage() {
       } else {
         setHasVotedRandom(true);
         setRandomSuccess('Vote success!');
-        // re-fetch updated
-        const updatedMain = await fetchCacheQuestionByID(randomQ.question_id);
-        setRandomQ(updatedMain);
+        const updated = await fetchCacheQuestionByID(randomQ.question_id);
+        setRandomQ(updated);
 
-        // check if user triggered a milestone
-        await checkAndShowMilestone(updatedMain);
+        // Check milestone
+        await checkAndShowMilestone(updated);
       }
     } catch (err: any) {
       setRandomError(err.message || 'Error voting on random question.');
@@ -202,9 +216,7 @@ export default function VotingPage() {
     return `${label} (${count})`;
   }
 
-  // --------------------------------------------------------------------------------
-  // SINGLE TAB
-  // --------------------------------------------------------------------------------
+  // ------------------ SINGLE TAB LOGIC ------------------
   async function handleFetchSingle() {
     setSingleError('');
     setSingleQ(null);
@@ -215,15 +227,12 @@ export default function VotingPage() {
       setSingleError('Please enter a question ID.');
       return;
     }
-    if (!userID) {
-      setSingleError('No user ID found. Please log in first.');
-      return;
-    }
+    if (!userID) return; // skip if user not loaded
+
     try {
       const q = await fetchCacheQuestionByID(singleID);
-      // Must be main
       if (!isMainQuestion(q)) {
-        throw new Error(`Question ${singleID} is a milestone question, not a main question.`);
+        throw new Error(`Question ${singleID} is a milestone, not a main question.`);
       }
       setSingleQ(q);
     } catch (err: any) {
@@ -245,12 +254,9 @@ export default function VotingPage() {
       } else {
         setHasVotedSingle(true);
         setSingleSuccess('Vote success!');
-        // re-fetch updated main
-        const updatedMain = await fetchCacheQuestionByID(singleQ.question_id);
-        setSingleQ(updatedMain);
-
-        // check milestone
-        await checkAndShowMilestone(updatedMain);
+        const updated = await fetchCacheQuestionByID(singleQ.question_id);
+        setSingleQ(updated);
+        await checkAndShowMilestone(updated);
       }
     } catch (err: any) {
       setSingleError(err.message || 'Error voting on single question.');
@@ -265,60 +271,7 @@ export default function VotingPage() {
     return `${label} (${count})`;
   }
 
-  // --------------------------------------------------------------------------------
-  // ALL TAB
-  // --------------------------------------------------------------------------------
-  async function handleFetchAll() {
-    setAllError('');
-    setAllQuestions([]);
-
-    if (!userID) {
-      setAllError('No user ID found. Please log in first.');
-      return;
-    }
-    try {
-      const data = await fetchCacheToday();
-      if (!data.questions) {
-        throw new Error('Invalid response. Expected { "questions": [...] }.');
-      }
-      // only main
-      const mainOnly = data.questions.filter(isMainQuestion);
-      setAllQuestions(mainOnly);
-    } catch (err: any) {
-      setAllError(err.message || 'Error fetching all questions.');
-    }
-  }
-
-  // auto-fetch all when tab = 'all'
-  useEffect(() => {
-    if (tab === 'all') {
-      handleFetchAll();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
-
-  // clicking "View & Vote" on All tab => single tab
-  async function handleSelectQuestion(qid: string) {
-    setTab('single');
-    setSingleID(qid);
-    setSingleError('');
-    setSingleQ(null);
-    setHasVotedSingle(false);
-    setSingleSuccess('');
-    try {
-      const q = await fetchCacheQuestionByID(qid);
-      if (!isMainQuestion(q)) {
-        throw new Error(`Question ${qid} is a milestone, not a main question.`);
-      }
-      setSingleQ(q);
-    } catch (err: any) {
-      setSingleError(err.message || 'Error loading selected question.');
-    }
-  }
-
-  // --------------------------------------------------------------------------------
-  // MILESTONE POPUP VOTING
-  // --------------------------------------------------------------------------------
+  // ------------------ MILESTONE POPUP ------------------
   async function handleVoteMilestone(isFirst: boolean) {
     if (!popupQuestion) return;
     try {
@@ -330,15 +283,12 @@ export default function VotingPage() {
       if (resp.already_voted) {
         alert('You already voted on this milestone question!');
       } else {
-        // optionally fetch updated milestone to see new counts
         await fetchCacheQuestionByID(popupQuestion.question_id);
         alert('Milestone vote success!');
       }
     } catch (err: any) {
       alert(err.message || 'Error voting on milestone question.');
     }
-
-    // Close the modal after a single milestone vote
     setPopupQuestion(null);
     setShowPopup(false);
     setMilestoneMsg('');
@@ -350,10 +300,35 @@ export default function VotingPage() {
     setMilestoneMsg('');
   }
 
-  // ------------------ RENDER ------------------
+  // ------------------ AUTO-FETCH ON TAB CHANGES ------------------
+  // 1) If tab=all and userID loaded => fetchAll
+  useEffect(() => {
+    if (tab === 'all' && userID) {
+      handleFetchAll();
+    }
+  }, [tab, userID]);
+
+  // 2) If tab=random and userID loaded => fetchRandom
+  useEffect(() => {
+    if (tab === 'random' && userID) {
+      handleFetchRandom();
+    }
+  }, [tab, userID]);
+
+  // 3) If tab=single, userID, and singleID => auto-fetch single
+  //    So if user just came from All tab with a question ID, we auto load it
+  useEffect(() => {
+    if (tab === 'single' && userID && singleID.trim()) {
+      handleFetchSingle();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, userID, singleID]);
+
   const headerStyle: React.CSSProperties = {
     position: 'fixed',
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -385,27 +360,49 @@ export default function VotingPage() {
       )}
 
       <div className={styles.tabBar}>
+        <button style={buttonStyle} onClick={() => setTab('all')}>
+          All
+        </button>
         <button style={buttonStyle} onClick={() => setTab('random')}>
           Random
         </button>
         <button style={buttonStyle} onClick={() => setTab('single')}>
           Single
         </button>
-        <button style={buttonStyle} onClick={() => setTab('all')}>
-          All
-        </button>
       </div>
 
-      {/* ------------------ RANDOM TAB ------------------ */}
+      {/* ALL TAB */}
+      {tab === 'all' && (
+        <div className={styles.tabContainer}>
+          <h2 style={{ textAlign: 'center' }}>All Questions (Today)</h2>
+          {allError && <p className={styles.error}>{allError}</p>}
+          {allQuestions.length > 0 && (
+            <div style={{ marginTop: '1rem' }}>
+              {allQuestions.map((q) => (
+                <div key={q.question_id} className={styles.card}>
+                  <p><strong>Question:</strong> {q.text}</p>
+                  <p><strong>Participants:</strong> {q.total_participants}</p>
+                  <p><strong>First Choice:</strong> {q.first_choice}</p>
+                  <p><strong>Second Choice:</strong> {q.second_choice}</p>
+                  <button
+                    style={{ ...buttonStyle, marginTop: '0.5rem' }}
+                    onClick={() => handleSelectQuestion(q.question_id)}
+                  >
+                    View &amp; Vote
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* RANDOM TAB */}
       {tab === 'random' && (
         <div className={styles.tabContainer}>
           <h2 style={{ textAlign: 'center' }}>Random Question</h2>
-          <button style={buttonStyle} onClick={handleFetchRandom}>
-            Fetch Random
-          </button>
           {randomError && <p className={styles.error}>{randomError}</p>}
           {randomSuccess && <p style={{ color: 'green', marginTop: '1rem' }}>{randomSuccess}</p>}
-
           {randomQ && (
             <div style={{ marginTop: '1rem' }}>
               <p><strong>Question:</strong> {randomQ.text}</p>
@@ -425,7 +422,7 @@ export default function VotingPage() {
         </div>
       )}
 
-      {/* ------------------ SINGLE TAB ------------------ */}
+      {/* SINGLE TAB */}
       {tab === 'single' && (
         <div className={styles.tabContainer}>
           <h2 style={{ textAlign: 'center' }}>Single Question</h2>
@@ -449,7 +446,6 @@ export default function VotingPage() {
               style={{ width: '250px', textAlign: 'left', padding: '5px' }}
             />
           </div>
-
           <button style={buttonStyle} onClick={handleFetchSingle}>
             Fetch Single
           </button>
@@ -475,34 +471,7 @@ export default function VotingPage() {
         </div>
       )}
 
-      {/* ------------------ ALL TAB ------------------ */}
-      {tab === 'all' && (
-        <div className={styles.tabContainer}>
-          <h2 style={{ textAlign: 'center' }}>All Questions (Today)</h2>
-          {allError && <p className={styles.error}>{allError}</p>}
-
-          {allQuestions.length > 0 && (
-            <div style={{ marginTop: '1rem' }}>
-              {allQuestions.map((q) => (
-                <div key={q.question_id} className={styles.card}>
-                  <p><strong>Question:</strong> {q.text}</p>
-                  <p><strong>Participants:</strong> {q.total_participants}</p>
-                  <p><strong>First Choice:</strong> {q.first_choice}</p>
-                  <p><strong>Second Choice:</strong> {q.second_choice}</p>
-                  <button
-                    style={{ ...buttonStyle, marginTop: '0.5rem' }}
-                    onClick={() => handleSelectQuestion(q.question_id)}
-                  >
-                    View &amp; Vote
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ------------------ MILESTONE POPUP ------------------ */}
+      {/* MILESTONE POPUP */}
       {showPopup && popupQuestion && (
         <div style={{
           position: 'fixed',
@@ -525,11 +494,11 @@ export default function VotingPage() {
             <p><strong>Question:</strong> {popupQuestion.text}</p>
             <p><strong>Participants:</strong> {popupQuestion.total_participants}</p>
             <p>
-              <strong>First Choice:</strong> 
+              <strong>First Choice:</strong>
               {popupQuestion.first_choice} ({popupQuestion.first_choice_count})
             </p>
             <p>
-              <strong>Second Choice:</strong> 
+              <strong>Second Choice:</strong>
               {popupQuestion.second_choice} ({popupQuestion.second_choice_count})
             </p>
 
