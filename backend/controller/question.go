@@ -212,14 +212,14 @@ func (s *Server) VoteForQuestion(c *fiber.Ctx) error {
 }
 
 func (s *Server) GetLastArchivedQuestion(c *fiber.Ctx) error {
-    s.logger.InfoWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Called")
+	s.logger.InfoWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Called")
 
-    q, err := s.questionService.GetLastArchivedQuestion(c.Context())
-    if err != nil {
-        s.logger.ErrorWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Service error:", err)
-        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-    }
+	q, err := s.questionService.GetLastArchivedQuestion(c.Context())
+	if err != nil {
+		s.logger.ErrorWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Service error:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
 
-    s.logger.InfoWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Successfully retrieved question with id:", q.QuestionID)
-    return c.Status(fiber.StatusOK).JSON(q)
+	s.logger.InfoWithID(c.Context(), "[Controller: GetLastArchivedQuestion] Successfully retrieved question with id:", q.QuestionID)
+	return c.Status(fiber.StatusOK).JSON(q)
 }
