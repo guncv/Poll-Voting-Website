@@ -10,6 +10,11 @@ variable "availability_zone" {
   default     = "us-west-2a"
 }
 
+variable "aws_account_id" {
+  description = "AWS Account ID"
+  type        = string
+}
+
 variable "aws_access_key" {
   description = "AWS Access Key"
   type        = string
