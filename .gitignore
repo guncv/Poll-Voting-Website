@@ -7,7 +7,6 @@ infra/.terraform.tfstate.*
 */terraform.tfstate
 */terraform.tfstate.backup
 infra/.terraform.tfstate.backup
-infra/*
 
 frontend/pnpm-lock.yaml
 frontend/package-lock.json

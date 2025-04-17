@@ -10,8 +10,22 @@ type CreateQuestionCacheRequest struct {
 	UserID       string `json:"user_id"`    // Injected in controller from JWT
 }
 
+type QuestionCache struct {
+	QuestionID        string `json:"question_id"`
+	GroupID           string `json:"group_id"`
+	FirstChoice       string `json:"first_choice"`
+	FirstChoiceCount  int    `json:"first_choice_count"`
+	FollowUps         string `json:"follow_ups"`
+	Milestones        string `json:"milestones"`
+	TotalParticipants int    `json:"total_participants"`
+	SecondChoice      string `json:"second_choice"`
+	SecondChoiceCount int    `json:"second_choice_count"`
+	Text              string `json:"text"`
+	UserID            string `json:"user_id"`
+}
+
 type CreateQuestionRequest struct {
-	ArchiveDate       string `json:"archive_date"`      
+	ArchiveDate       string `json:"archive_date"`
 	QuestionText      string `json:"question_text"`
 	FirstChoice       string `json:"first_choice"`
 	SecondChoice      string `json:"second_choice"`

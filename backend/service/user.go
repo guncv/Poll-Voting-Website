@@ -97,12 +97,6 @@ func (us *userService) Login(ctx context.Context, email, password string) (model
 		return model.User{}, errors.New("invalid credentials")
 	}
 
-	err = us.notificationService.NotifyUserOfUrgentQuestion(ctx, "Urgent Question", "A new user has logged in with email: "+email)
-	if err != nil {
-		us.log.ErrorWithID(ctx, "[Service: Login] Error notifying user of urgent question:", err)
-		return model.User{}, err
-	}
-
 	us.log.InfoWithID(ctx, "[Service: Login] User logged in successfully with email:", email)
 	return u, nil
 }

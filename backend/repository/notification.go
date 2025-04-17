@@ -21,6 +21,7 @@ type INotificationRepository interface {
 	SendAdminAlert(ctx context.Context, alert entity.Alert) error
 	SendUserAlert(ctx context.Context, alert entity.Alert) error
 	SubscribeToUserTopic(ctx context.Context, email string) error
+	GetAdminSubscriptions(ctx context.Context) ([]string, error)
 }
 
 func NewNotificationRepository(client *sns.Client, cfg cfg.Config, logger log.LoggerInterface) INotificationRepository {
@@ -80,4 +81,36 @@ func (s *NotificationRepository) subscribeEmail(ctx context.Context, topicArn, l
 
 	s.log.InfoWithID(ctx, logPrefix+" Subscription requested for "+email)
 	return nil
+}
+
+func (s *NotificationRepository) GetAdminSubscriptions(ctx context.Context) ([]string, error) {
+	s.log.InfoWithID(ctx, "[Repository: GetAdminSubscriptions] Called")
+
+	var subscriptions []string
+	var nextToken *string
+
+	for {
+		resp, err := s.client.ListSubscriptionsByTopic(ctx, &sns.ListSubscriptionsByTopicInput{
+			TopicArn:  aws.String(s.cfg.Notification.AdminTopicArn),
+			NextToken: nextToken,
+		})
+		if err != nil {
+			s.log.ErrorWithID(ctx, "[Repository: GetAdminSubscriptions] Failed to list subscriptions:", err)
+			return nil, fmt.Errorf("failed to list subscriptions for topic %s: %w", s.cfg.Notification.AdminTopicArn, err)
+		}
+
+		for _, sub := range resp.Subscriptions {
+			if sub.Endpoint != nil {
+				subscriptions = append(subscriptions, *sub.Endpoint)
+			}
+		}
+
+		if resp.NextToken == nil {
+			break
+		}
+		nextToken = resp.NextToken
+	}
+
+	s.log.InfoWithID(ctx, "[Repository: GetAdminSubscriptions] Found subscriptions:", len(subscriptions))
+	return subscriptions, nil
 }
