@@ -7,19 +7,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/guncv/Poll-Voting-Website/backend/constant"
 	"github.com/guncv/Poll-Voting-Website/backend/db"
 	"github.com/guncv/Poll-Voting-Website/backend/entity"
 	"github.com/guncv/Poll-Voting-Website/backend/log"
 	"github.com/guncv/Poll-Voting-Website/backend/model"
 	"github.com/guncv/Poll-Voting-Website/backend/repository"
 	"github.com/guncv/Poll-Voting-Website/backend/util"
+	"github.com/mitchellh/mapstructure"
 	"gorm.io/gorm"
 )
 
 // QuestionService defines business operations for questions.
 type IQuestionService interface {
 	//DB question logic
-	CreateQuestion(ctx context.Context,archiveDate time.Time,questionText string,firstChoice string,secondChoice string,totalParticipants int,firstChoiceCount int,secondChoiceCount int,createdBy uuid.UUID,) (model.Question, error)
+	CreateQuestion(ctx context.Context, archiveDate time.Time, questionText string, firstChoice string, secondChoice string, totalParticipants int, firstChoiceCount int, secondChoiceCount int, createdBy uuid.UUID) (model.Question, error)
 	GetQuestionByID(ctx context.Context, id int) (model.Question, error)
 	GetAllQuestions(ctx context.Context) ([]model.Question, error)
 	DeleteQuestion(ctx context.Context, id int) error
@@ -36,21 +38,25 @@ type IQuestionService interface {
 }
 
 type QuestionService struct {
-	repo  repository.QuestionRepository
-	cache db.CacheService
-	log   log.LoggerInterface
+	repo                repository.QuestionRepository
+	cache               db.CacheService
+	log                 log.LoggerInterface
+	notificationService INotificationService
+	userService         UserService
 }
 
 // NewQuestionService creates a new questionService with injected repository and logger.
-func NewQuestionService(r repository.QuestionRepository, cache db.CacheService, logger log.LoggerInterface) IQuestionService {
+func NewQuestionService(r repository.QuestionRepository, cache db.CacheService, logger log.LoggerInterface, userService UserService, notificationService INotificationService) IQuestionService {
 	return &QuestionService{
-		repo:  r,
-		cache: cache,
-		log:   logger,
+		repo:                r,
+		cache:               cache,
+		log:                 logger,
+		userService:         userService,
+		notificationService: notificationService,
 	}
 }
 
-func (qs *QuestionService) CreateQuestion(ctx context.Context,archiveDate time.Time,questionText string,firstChoice string,secondChoice string,totalParticipants int,firstChoiceCount int,secondChoiceCount int,createdBy uuid.UUID,) (model.Question, error) {
+func (qs *QuestionService) CreateQuestion(ctx context.Context, archiveDate time.Time, questionText string, firstChoice string, secondChoice string, totalParticipants int, firstChoiceCount int, secondChoiceCount int, createdBy uuid.UUID) (model.Question, error) {
 
 	qs.log.InfoWithID(ctx, "[Service: CreateQuestion] Called")
 
@@ -69,6 +75,27 @@ func (qs *QuestionService) CreateQuestion(ctx context.Context,archiveDate time.T
 	if err != nil {
 		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error creating question:", err)
 		return model.Question{}, err
+	}
+
+	user, err := qs.userService.GetUserByID(ctx, createdBy.String())
+	if err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error getting user:", err)
+		return model.Question{}, err
+	}
+
+	isAdmin, err := qs.notificationService.CheckIsAdmin(ctx, user.Email)
+	if err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error checking if user is admin:", err)
+		return model.Question{}, err
+	}
+
+	if isAdmin {
+		questionAlert := fmt.Sprintf("Question: %s\nFirst Choice: %s\nSecond Choice: %s\nCreated By: %s", q.QuestionText, q.FirstChoice, q.SecondChoice, user.Email)
+		err = qs.notificationService.NotifyUserOfAdminQuestion(ctx, user.Email, "Admin Question", questionAlert)
+		if err != nil {
+			qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error notifying user of admin question:", err)
+			return model.Question{}, err
+		}
 	}
 
 	qs.log.InfoWithID(ctx, "[Service: CreateQuestion] Question created with id:", created.QuestionID)
@@ -158,13 +185,33 @@ func (qs *QuestionService) VoteForQuestion(ctx context.Context, vote entity.Vote
 		}
 	}
 
-	first, _ := qs.cache.GetFieldInt("question:"+date+":"+vote.QuestionID, "first_choice_count")
-	second, _ := qs.cache.GetFieldInt("question:"+date+":"+vote.QuestionID, "second_choice_count")
+	question, _ := qs.cache.GetAllHash("question:" + date + ":" + vote.QuestionID)
+	var q entity.QuestionCache
+	decoderConfig := &mapstructure.DecoderConfig{
+		TagName:          "json",
+		WeaklyTypedInput: true,
+		Result:           &q,
+	}
+	decoder, err := mapstructure.NewDecoder(decoderConfig)
+	if err != nil {
+		return entity.VoteResponse{}, err
+	}
+	if err := decoder.Decode(question); err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: VoteForQuestion] Error decoding question:", err)
+		return entity.VoteResponse{}, err
+	}
+
+	if q.TotalParticipants == constant.ParticipantsReachedThreshold {
+		if err := qs.notificationService.SendAlertReachParticipantsToAdmin(ctx, q.Text, q.TotalParticipants, q.FirstChoice, q.SecondChoice, q.FirstChoiceCount, q.SecondChoiceCount); err != nil {
+			qs.log.ErrorWithID(ctx, "[Service: VoteForQuestion] Error sending alert to admin:", err)
+			return entity.VoteResponse{}, err
+		}
+	}
 
 	return entity.VoteResponse{
 		QuestionID:        vote.QuestionID,
-		FirstChoiceCount:  first,
-		SecondChoiceCount: second,
+		FirstChoiceCount:  q.FirstChoiceCount,
+		SecondChoiceCount: q.SecondChoiceCount,
 		TotalParticipants: int(total),
 		NewlyRevealedIDs:  newlyRevealed,
 		AlreadyVoted:      false,
@@ -200,6 +247,27 @@ func (qs *QuestionService) CreateQuestionCache(ctx context.Context, req entity.C
 
 	if err := qs.cache.AddToSet("questions:"+date, id); err != nil {
 		return "", err
+	}
+
+	user, err := qs.userService.GetUserByID(ctx, req.UserID)
+	if err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error getting user:", err)
+		return "", err
+	}
+
+	isAdmin, err := qs.notificationService.CheckIsAdmin(ctx, user.Email)
+	if err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error checking if user is admin:", err)
+		return "", err
+	}
+
+	if isAdmin {
+		questionAlert := fmt.Sprintf("Question: %s\nFirst Choice: %s\nSecond Choice: %s\nCreated By: %s", req.Text, req.FirstChoice, req.SecondChoice, user.Email)
+		err = qs.notificationService.NotifyUserOfAdminQuestion(ctx, user.Email, "Admin Question", questionAlert)
+		if err != nil {
+			qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error notifying user of admin question:", err)
+			return "", err
+		}
 	}
 
 	return id, nil
@@ -277,12 +345,12 @@ func (qs *QuestionService) GetAllTodayQuestions(ctx context.Context) ([]model.Qu
 }
 
 func (qs *QuestionService) GetLastArchivedQuestion(ctx context.Context) (model.Question, error) {
-    qs.log.InfoWithID(ctx, "[Service: GetLastArchivedQuestion] Called")
-    q, err := qs.repo.FindLastArchivedQuestion(ctx)
-    if err != nil {
-        qs.log.ErrorWithID(ctx, "[Service: GetLastArchivedQuestion] Error retrieving last archived question:", err)
-        return model.Question{}, err
-    }
-    qs.log.InfoWithID(ctx, "[Service: GetLastArchivedQuestion] Found last archived question with id:", q.QuestionID)
-    return q, nil
+	qs.log.InfoWithID(ctx, "[Service: GetLastArchivedQuestion] Called")
+	q, err := qs.repo.FindLastArchivedQuestion(ctx)
+	if err != nil {
+		qs.log.ErrorWithID(ctx, "[Service: GetLastArchivedQuestion] Error retrieving last archived question:", err)
+		return model.Question{}, err
+	}
+	qs.log.InfoWithID(ctx, "[Service: GetLastArchivedQuestion] Found last archived question with id:", q.QuestionID)
+	return q, nil
 }
