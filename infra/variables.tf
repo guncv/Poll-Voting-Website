@@ -1,13 +1,12 @@
 variable "aws_region" {
   description = "AWS region to deploy resources"
   type        = string
-  default     = "us-west-2"
+  default     = "ap-southeast-1"  # Singapore
 }
-
-variable "availability_zone" {
-  description = "AZ used for subnet placement"
-  type        = string
-  default     = "us-west-2a"
+variable "availability_zones" {
+  description = "AZs used for subnet placement in Singapore region"
+  type        = list(string)
+  default     = ["ap-southeast-1a", "ap-southeast-1b"]
 }
 
 variable "aws_account_id" {

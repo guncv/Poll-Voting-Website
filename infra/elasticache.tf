@@ -16,18 +16,30 @@ resource "aws_vpc" "cv_c9_vpc" {
 // Public Subnet for NAT Gateway
 // ========================================
 
-resource "aws_subnet" "public" {
+resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.cv_c9_vpc.id
   cidr_block              = "10.0.3.0/24"
-  availability_zone       = var.availability_zone
+  availability_zone       = var.availability_zones[0]
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "${var.project}-public-subnet"
+    Name = "${var.project}-public-subnet-1"
   }
 
   depends_on = [aws_vpc.cv_c9_vpc]
 }
+
+resource "aws_subnet" "public_2" {
+  vpc_id                  = aws_vpc.cv_c9_vpc.id
+  cidr_block              = "10.0.4.0/24"
+  availability_zone       = var.availability_zones[1]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project}-public-subnet-2"
+  }
+}
+
 
 // ========================================
 // Internet Gateway & Route Table for NAT
@@ -54,8 +66,13 @@ resource "aws_route_table" "public_rt" {
   }
 }
 
-resource "aws_route_table_association" "public_assoc" {
-  subnet_id      = aws_subnet.public.id
+resource "aws_route_table_association" "public_assoc_1" {
+  subnet_id      = aws_subnet.public_1.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+resource "aws_route_table_association" "public_assoc_2" {
+  subnet_id      = aws_subnet.public_2.id
   route_table_id = aws_route_table.public_rt.id
 }
 
@@ -70,7 +87,7 @@ resource "aws_eip" "nat_eip" {
 
 resource "aws_nat_gateway" "nat" {
   allocation_id = aws_eip.nat_eip.id
-  subnet_id     = aws_subnet.public.id
+  subnet_id     = aws_subnet.public_1.id
 
   tags = {
     Name = "${var.project}-nat-gw"
@@ -109,7 +126,7 @@ resource "aws_route_table_association" "private_assoc_2" {
 resource "aws_subnet" "private_1" {
   vpc_id                  = aws_vpc.cv_c9_vpc.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = var.availability_zone
+  availability_zone       = var.availability_zones[0]
   map_public_ip_on_launch = false
 
   tags = {
@@ -122,7 +139,7 @@ resource "aws_subnet" "private_1" {
 resource "aws_subnet" "private_2" {
   vpc_id                  = aws_vpc.cv_c9_vpc.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = var.availability_zone
+  availability_zone       = var.availability_zones[1]
   map_public_ip_on_launch = false
 
   tags = {

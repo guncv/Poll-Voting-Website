@@ -35,13 +35,38 @@ resource "aws_lb" "ecs_alb" {
   name               = "${var.project}-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.redis_sg.id] # You may replace with dedicated SG later
-  subnets            = [aws_subnet.public.id]
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = [aws_subnet.public_1.id,aws_subnet.public_2.id]
 
   tags = {
     Name = "${var.project}-alb"
   }
 }
+
+resource "aws_security_group" "alb_sg" {
+  name        = "${var.project}-alb-sg"
+  description = "Allow HTTP traffic to ALB"
+  vpc_id      = aws_vpc.cv_c9_vpc.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project}-alb-sg"
+  }
+}
+
 
 resource "aws_lb_listener" "alb_listener" {
   load_balancer_arn = aws_lb.ecs_alb.arn

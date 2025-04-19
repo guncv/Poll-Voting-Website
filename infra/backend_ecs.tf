@@ -1,12 +1,42 @@
 # ===========================
-# ECR REPOSITORY
+# SECURITY GROUP: BACKEND
 # ===========================
-resource "aws_ecr_repository" "backend_repo" {
-  name = "${var.project}-backend"
+resource "aws_security_group" "backend_sg" {
+  name   = "${var.project}-backend-sg"
+  vpc_id = aws_vpc.cv_c9_vpc.id
+
+
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+    description = "Internal VPC access to backend service"
+  }
+
+  # Allow ECS task to pull from ECR (via VPC Endpoint on port 443)
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+    description = "HTTPS access for ECR and CloudWatch VPC Endpoints"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project}-backend-sg"
+  }
 }
 
 # ===========================
-# BACKEND TASK DEFINITION
+# TASK DEFINITION: BACKEND
 # ===========================
 resource "aws_ecs_task_definition" "backend_task" {
   family                   = "${var.project}-backend"
@@ -35,41 +65,30 @@ resource "aws_ecs_task_definition" "backend_task" {
         {
           name  = "REDIS_PORT",
           value = "6379"
+        },
+        {
+          name  = "APP_ENV",
+          value = var.env
         }
       ]
+      logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = "/ecs/${var.project}-backend"
+        awslogs-region        = var.aws_region
+          awslogs-stream-prefix = "ecs"
+        }
+      }
     }
   ])
-}
 
-# ===========================
-# ALB TARGET GROUP AND LISTENER RULE FOR BACKEND
-# ===========================
-resource "aws_lb_target_group" "backend_tg" {
-  name     = "${var.project}-backend-tg"
-  port     = 8080
-  protocol = "HTTP"
-  vpc_id   = aws_vpc.cv_c9_vpc.id
-  target_type = "ip"
-}
-
-resource "aws_lb_listener_rule" "backend_rule" {
-  listener_arn = aws_lb_listener.alb_listener.arn
-  priority     = 200
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend_tg.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/api*"]
-    }
+  tags = {
+    Name = "${var.project}-backend-task"
   }
 }
 
 # ===========================
-# BACKEND ECS SERVICE
+# ECS SERVICE: BACKEND
 # ===========================
 resource "aws_ecs_service" "backend_service" {
   name            = "${var.project}-backend-service"
@@ -80,15 +99,11 @@ resource "aws_ecs_service" "backend_service" {
 
   network_configuration {
     subnets         = [aws_subnet.private_1.id, aws_subnet.private_2.id]
-    security_groups = [aws_security_group.redis_sg.id]
+    security_groups = [aws_security_group.backend_sg.id]
     assign_public_ip = false
   }
 
-  load_balancer {
-    target_group_arn = aws_lb_target_group.backend_tg.arn
-    container_name   = "backend"
-    container_port   = 8080
+  tags = {
+    Name = "${var.project}-backend-service"
   }
-
-  depends_on = [aws_lb_listener_rule.backend_rule]
 }

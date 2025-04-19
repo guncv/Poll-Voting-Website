@@ -18,12 +18,8 @@ output "redis_subnet_group" {
   value       = aws_elasticache_subnet_group.redis_subnet_group.name
 }
 
-output "alb_dns_name" {
-  description = "🌐 ALB DNS Name"
-  value       = aws_lb.ecs_alb.dns_name
-}
+data "aws_caller_identity" "current" {}
 
 output "aws_account_id" {
-  description = "AWS Account ID for ECR"
-  value       = var.aws_account_id
+  value = coalesce(var.aws_account_id, data.aws_caller_identity.current.account_id)
 }
