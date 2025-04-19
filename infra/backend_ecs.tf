@@ -23,6 +23,15 @@ resource "aws_security_group" "backend_sg" {
     description = "HTTPS access for ECR and CloudWatch VPC Endpoints"
   }
 
+  # Egress rule for allowing outbound HTTPS traffic (port 443)
+  egress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Allow outbound traffic on port 443 to any destination
+    description = "Outbound HTTPS traffic (for ECR, CloudWatch, etc.)"
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -71,12 +80,12 @@ resource "aws_ecs_task_definition" "backend_task" {
           value = var.env
         }
       ]
-      logConfiguration = {
-      logDriver = "awslogs"
-      options = {
-        awslogs-group         = "/ecs/${var.project}-backend"
-        awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "ecs"
+     logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = "/ecs/${var.project}-backend"  
+          awslogs-region        = var.aws_region                
+          awslogs-stream-prefix = "ecs"                         
         }
       }
     }

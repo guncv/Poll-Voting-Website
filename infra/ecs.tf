@@ -9,23 +9,72 @@ resource "aws_ecs_cluster" "cv_c9_cluster" {
 # IAM ROLE FOR ECS TASKS
 # ===========================
 resource "aws_iam_role" "ecs_task_execution_role" {
-  name = "${var.project}-ecs-task-execution-role"
-
+  name               = "${var.project}-ecs-task-execution-role"
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement = [{
-      Effect = "Allow",
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Principal = {
+          Service = "ecs-tasks.amazonaws.com"
+        }
+        Action   = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project}-ecs-task-execution-role"
+  }
+}
+
+# Custom Policy to allow access to CloudWatch, VPC Endpoints, and ECR
+resource "aws_iam_policy" "ecs_task_execution_policy_custom" {
+  name        = "ecs-task-execution-policy-custom"
+  description = "Custom policy to allow CloudWatch, ECR access, and VPC Endpoint usage"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      # Allow ECS Task to pull images from ECR
+      {
+        Effect   = "Allow",
+        Action   = [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchGetImage",
+          "ecr:BatchCheckLayerAvailability"
+        ],
+        Resource = "arn:aws:ecr:${var.aws_region}:${var.aws_account_id}:repository/*"
       },
-      Action = "sts:AssumeRole"
-    }]
+      # Allow ECS Task to write logs to CloudWatch
+      {
+        Effect   = "Allow",
+        Action   = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams",
+          "logs:DescribeLogGroups"
+        ],
+        Resource = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*"
+      },
+      # Allow ECS Task to connect to VPC Endpoint services
+      {
+        Effect   = "Allow",
+        Action   = [
+          "ec2:DescribeVpcEndpoints",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets"
+        ],
+        Resource = "*"
+      }
+    ]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
+# Attach the custom policy to the ECS Task Execution Role
+resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy_custom_attachment" {
   role       = aws_iam_role.ecs_task_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+  policy_arn = aws_iam_policy.ecs_task_execution_policy_custom.arn 
 }
 
 # ===========================

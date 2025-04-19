@@ -91,9 +91,6 @@ create-ecr:
 	cd $(TERRAFORM_DIR) && terraform apply \
 		-target=aws_ecr_repository.backend_repo \
 		-target=aws_ecr_repository.frontend_repo \
-		-target=aws_vpc_endpoint.ecr_api \
-		-target=aws_vpc_endpoint.ecr_dkr \
-		-target=aws_vpc_endpoint.logs \
 		-var-file="terraform.tfvars" \
 		-var-file="private.tfvars" \
 		-auto-approve
@@ -101,7 +98,16 @@ create-ecr:
 deploy-ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 
-deploy-backend : env-prod build-backend push-backend deploy-backend-ecs 
+deploy-backend : env-prod create-vpc-endpoints build-backend push-backend deploy-backend-ecs 
+
+create-vpc-endpoints:
+	cd $(TERRAFORM_DIR) && terraform apply \
+		-target=aws_vpc_endpoint.ecr_api \
+		-target=aws_vpc_endpoint.ecr_dkr \
+		-target=aws_vpc_endpoint.logs \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars" \
+		-auto-approve
 
 build-backend:
 	docker build -t cv-c9-backend ./backend
@@ -116,6 +122,7 @@ deploy-backend-ecs:
 		-target=aws_ecs_cluster.cv_c9_cluster \
 		-target=aws_iam_role.ecs_task_execution_role \
 		-target=aws_iam_role_policy_attachment.ecs_task_execution_policy \
+		-target=aws_iam_role_policy_attachment.ecs_task_execution_policy_custom_attachment \
 		-target=aws_ecs_task_definition.backend_task \
 		-target=aws_ecs_service.backend_service \
 		-var-file="terraform.tfvars" \
