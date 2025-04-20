@@ -109,23 +109,21 @@ deploy-ecr-repos:
 deploy-ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 
-# Step 6: Build Backend Docker Image
+# Step 6: Build Backend Docker Image for ECS
 build-backend:
-	docker build -t cv-c9-backend ./backend
+	docker buildx build --platform linux/amd64 -t cv-c9-backend ./backend
 
-# Step 7: Push Backend Docker Image to ECR
-push-backend: deploy-ecr-repos deploy-ecr-login build-backend
-	docker tag cv-c9-backend $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest
-	docker push --all-tags $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend
+# Step 7: Push Backend Docker Image to ECR (with correct platform)
+push-backend: deploy-ecr-repos deploy-ecr-login
+	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest --push ./backend
 
-# Step 8: Build Frontend Docker Image
+# Step 8: Build Frontend Docker Image for ECS
 build-frontend:
-	docker build -t cv-c9-frontend ./frontend
+	docker buildx build --platform linux/amd64 -t cv-c9-frontend ./frontend
 
-# Step 9: Push Frontend Docker Image to ECR
-push-frontend: deploy-ecr-repos deploy-ecr-login build-frontend
-	docker tag cv-c9-frontend $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest
-	docker push --all-tags $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend
+# Step 9: Push Frontend Docker Image to ECR (with correct platform)
+push-frontend: deploy-ecr-repos deploy-ecr-login
+	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest --push ./frontend
 
 # Step 10: Deploy ECS Services (Combined Backend and Frontend)
 deploy-ecs:
@@ -203,11 +201,11 @@ help:
 	@echo ""
 	@echo " Terraform (Modular):"
 	@echo "   deploy-network  - Deploy network infra (VPC, Subnets)"
-	@echo "   build-backend    - Build Docker backend image"
-	@echo "   push-backend     - Push backend image to ECR"
-	@echo "   build-frontend   - Build frontend Docker image"
-	@echo "   push-frontend    - Push frontend image to ECR"
-	@echo "   deploy-ecs       - Deploy ECS Cluster + Tasks"
+	@echo "   build-backend    - Build backend Docker image (linux/amd64)"
+	@echo "   push-backend     - Build & Push backend image to ECR (linux/amd64)"
+	@echo "   build-frontend   - Build frontend Docker image (linux/amd64)"
+	@echo "   push-frontend    - Build & Push frontend image to ECR (linux/amd64)"
+
 	@echo ""
 	@echo " Terraform (Full):"
 	@echo "   tf-init       - Initialize Terraform"
