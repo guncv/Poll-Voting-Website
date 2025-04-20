@@ -4,10 +4,9 @@ variable "aws_region" {
   default     = "us-west-2"
 }
 
-variable "availability_zone" {
-  description = "AZ used for subnet placement"
-  type        = string
-  default     = "us-west-2a"
+variable "availability_zones" {
+  type    = list(string)
+  default = ["us-west-2a", "us-west-2b", "us-west-2c"]
 }
 
 variable "aws_account_id" {

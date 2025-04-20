@@ -12,6 +12,84 @@ resource "aws_vpc" "cv_c9_vpc" {
   }
 }
 
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = aws_vpc.cv_c9_vpc.id
+  service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [
+    aws_subnet.private_1.id,
+    aws_subnet.private_2.id
+  ]
+  security_group_ids  = [aws_security_group.ecs_sg.id]
+  private_dns_enabled = true
+}
+
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = aws_vpc.cv_c9_vpc.id
+  service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = [
+    aws_subnet.private_1.id,
+    aws_subnet.private_2.id
+  ]
+  security_group_ids  = [aws_security_group.ecs_sg.id]
+  private_dns_enabled = true
+}
+
+
+# resource "aws_vpc_endpoint" "ecr_api" {
+#   vpc_id              = aws_vpc.cv_c9_vpc.id
+#   service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
+#   vpc_endpoint_type   = "Interface"
+#   subnet_ids = [
+#   aws_subnet.private_1.id,
+#   aws_subnet.private_2.id
+# ]
+
+#   # subnet_ids          = [
+#   #   aws_subnet.public.id,
+#   #   aws_subnet.public_2.id,
+#   #   aws_subnet.public_3.id
+#   # ]
+#   security_group_ids  = [aws_security_group.ecs_sg.id]
+#   private_dns_enabled = true
+#   depends_on          = [aws_subnet.public, aws_subnet.public_2, aws_subnet.public_3]
+# }
+
+# resource "aws_vpc_endpoint" "ecr_dkr" {
+#   vpc_id              = aws_vpc.cv_c9_vpc.id
+#   service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
+#   vpc_endpoint_type   = "Interface"
+#   # subnet_ids          = [
+#   #   aws_subnet.public.id,
+#   #   aws_subnet.public_2.id,
+#   #   aws_subnet.public_3.id
+#   # ]
+#   subnet_ids = [
+#   aws_subnet.private_1.id,
+#   aws_subnet.private_2.id
+# ]
+
+#   security_group_ids  = [aws_security_group.ecs_sg.id]
+#   private_dns_enabled = true
+#   depends_on          = [aws_subnet.public, aws_subnet.public_2, aws_subnet.public_3]
+# }
+
+resource "aws_vpc_endpoint" "s3_gateway" {
+  vpc_id            = aws_vpc.cv_c9_vpc.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [
+    aws_route_table.public_rt.id,
+    aws_route_table.private_rt.id
+  ]
+
+  tags = {
+    Name = "${var.project}-s3-endpoint"
+  }
+}
+
+
 // ========================================
 // Public Subnet for NAT Gateway
 // ========================================
@@ -19,11 +97,38 @@ resource "aws_vpc" "cv_c9_vpc" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.cv_c9_vpc.id
   cidr_block              = "10.0.3.0/24"
-  availability_zone       = var.availability_zone
+  availability_zone       = var.availability_zones[0]  # AZ[0] - First availability zone
   map_public_ip_on_launch = true
 
   tags = {
     Name = "${var.project}-public-subnet"
+  }
+
+  depends_on = [aws_vpc.cv_c9_vpc]
+}
+
+
+resource "aws_subnet" "public_2" {
+  vpc_id                  = aws_vpc.cv_c9_vpc.id
+  cidr_block              = "10.0.4.0/24"
+  availability_zone       = var.availability_zones[1] # Ensure this is in a different AZ
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project}-public-subnet-2"
+  }
+
+  depends_on = [aws_vpc.cv_c9_vpc]
+}
+
+resource "aws_subnet" "public_3" {
+  vpc_id                  = aws_vpc.cv_c9_vpc.id
+  cidr_block              = "10.0.5.0/24"
+  availability_zone       = var.availability_zones[2]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.project}-public-subnet-3"
   }
 
   depends_on = [aws_vpc.cv_c9_vpc]
@@ -58,6 +163,17 @@ resource "aws_route_table_association" "public_assoc" {
   subnet_id      = aws_subnet.public.id
   route_table_id = aws_route_table.public_rt.id
 }
+
+resource "aws_route_table_association" "public_assoc_2" {
+  subnet_id      = aws_subnet.public_2.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
+resource "aws_route_table_association" "public_assoc_3" {
+  subnet_id      = aws_subnet.public_3.id
+  route_table_id = aws_route_table.public_rt.id
+}
+
 
 // ========================================
 // NAT Gateway for Private Subnets
@@ -109,7 +225,7 @@ resource "aws_route_table_association" "private_assoc_2" {
 resource "aws_subnet" "private_1" {
   vpc_id                  = aws_vpc.cv_c9_vpc.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = var.availability_zone
+  availability_zone = var.availability_zones[0]
   map_public_ip_on_launch = false
 
   tags = {
@@ -122,7 +238,7 @@ resource "aws_subnet" "private_1" {
 resource "aws_subnet" "private_2" {
   vpc_id                  = aws_vpc.cv_c9_vpc.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = var.availability_zone
+  availability_zone       = var.availability_zones[1]
   map_public_ip_on_launch = false
 
   tags = {

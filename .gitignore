@@ -11,3 +11,5 @@ infra/.terraform.tfstate.backup
 frontend/pnpm-lock.yaml
 frontend/package-lock.json
 frontend/package.json
+
+terraform.tfstate

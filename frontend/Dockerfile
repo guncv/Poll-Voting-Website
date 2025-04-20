@@ -1,5 +1,5 @@
 # Stage 1: Build the app
-FROM node:18 AS builder
+FROM node:23-slim AS builder
 
 WORKDIR /app
 
@@ -7,17 +7,17 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Now copy the rest of the source code.
+# Now copy the rest of the source code excluding files like node_modules and build artifacts.
 COPY . .
 
-# Build the production assets (adjust this if your build output is in a different folder)
+# Build the production assets
 RUN npm run build
 
-# Optionally remove dev dependencies (if your build output doesn't need them)
+# Optionally remove dev dependencies
 RUN npm prune --production
 
 # Stage 2: Production image
-FROM node:18-alpine
+FROM node:23-slim
 
 WORKDIR /app
 
