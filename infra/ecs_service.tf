@@ -59,7 +59,19 @@ resource "aws_lb_target_group" "frontend_tg" {
   protocol    = "HTTP"
   vpc_id      = aws_vpc.cv_c9_vpc.id
   target_type = "ip"
+
+  health_check {
+    path                = "/"
+    port                = "3000"
+    protocol            = "HTTP"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    matcher             = "200"
+  }
 }
+
 
 # ===========================
 # ALB TARGET GROUP FOR BACKEND
@@ -70,7 +82,19 @@ resource "aws_lb_target_group" "backend_tg" {
   protocol    = "HTTP"
   vpc_id      = aws_vpc.cv_c9_vpc.id
   target_type = "ip"
+
+  health_check {
+    path                = "/api/health"
+    port                = "8080"
+    protocol            = "HTTP"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    matcher             = "200"
+  }
 }
+
 
 # ===========================
 # ALB LISTENER RULES
@@ -86,10 +110,11 @@ resource "aws_lb_listener_rule" "frontend_rule" {
 
   condition {
     path_pattern {
-      values = ["/"]
+      values = ["/*"]  # <-- CHANGE THIS
     }
   }
 }
+
 
 resource "aws_lb_listener_rule" "backend_rule" {
   listener_arn = aws_lb_listener.alb_listener.arn
