@@ -1,5 +1,5 @@
 TERRAFORM_DIR := infra
-AWS_ACCOUNT_ID := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw aws_account_id)
+AWS_ACCOUNT_ID := 913524943390
 ALB_DNS_NAME := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw alb_dns_name)
 AWS_REGION := us-west-2
 

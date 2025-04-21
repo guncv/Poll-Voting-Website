@@ -10,6 +10,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors" // <--- import the cors middleware
 	"github.com/guncv/Poll-Voting-Website/backend/config"
+	"github.com/guncv/Poll-Voting-Website/backend/constant"
 	"github.com/guncv/Poll-Voting-Website/backend/db"
 	"github.com/guncv/Poll-Voting-Website/backend/log"
 	"github.com/guncv/Poll-Voting-Website/backend/repository"
@@ -38,16 +39,20 @@ func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterfac
 
 	// Set custom HTTP client to skip SSL certificate verification
 	customHTTPClient := &http.Client{
+		Timeout: constant.HTTPTimeout,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Disable TLS verification
+			// Use default TLS settings (including CA certificates)
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: false, // Set to false to enable certificate verification
+			},
 		},
 	}
 
 	// Return a new SNS client with the custom HTTP client
 	return sns.New(sns.Options{
 		Credentials: customCreds,
-		Region:      "ap-southeast-1", // Replace with your desired region
-		HTTPClient:  customHTTPClient, // Use the custom HTTP client
+		Region:      constant.SNSRegion, // Replace with your desired region
+		HTTPClient:  customHTTPClient,   // Use the custom HTTP client
 	})
 }
 
