@@ -1,4 +1,4 @@
-export const API_BASE = 'http://cv-c9-alb-1095358633.us-west-2.elb.amazonaws.com/api';  
+export const API_BASE = process.env.NEXT_PUBLIC_API_PATH || 'http://localhost:8080/api';  
 
 let accessToken: string | null =
   typeof window !== 'undefined'

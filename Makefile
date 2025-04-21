@@ -131,19 +131,16 @@ push-frontend:
 	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest --push ./frontend
 
 update-frontend-path:
-	@echo "Fetching ALB DNS name..."
-	@echo "Updating frontend API path with ALB DNS..."
-	@sed -i '' "s|export const API_BASE = 'http://.*';|export const API_BASE = 'http://$(ALB_DNS_NAME)/api';|g" ./frontend/src/utils/apiClient.ts
-	@echo "Frontend API path updated with ALB DNS: $(ALB_DNS_NAME)"
+	echo "Fetching ALB DNS name..."
+	ALB_DNS_NAME=$(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)
+	echo "Updating frontend API path with ALB DNS..."
+	sed -i '' "s|NEXT_PUBLIC_API_PATH=http://.*|NEXT_PUBLIC_API_PATH=http://$(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)/api|g" ./frontend/.env.local
+	echo "Frontend API path updated with ALB DNS: $(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)"
 
-update-ecr: 
-	@echo "Building backend..."
-	build-backend
-	@echo "Pushing backend..."
-	push-backend
-	@echo "Building frontend..."
-	build-frontend
-	@echo "Pushing frontend..."
+update-ecr: \
+	build-backend \
+	push-backend \
+	build-frontend \
 	push-frontend
 
 # Step 10: Deploy ECS Services (Combined Backend and Frontend)
@@ -158,10 +155,13 @@ deploy-ecs:
 		-refresh=true
 
 restart-ecs:
-	aws ecs update-service \
-	--cluster cv-c9-cluster \
-	--service cv-c9-combined-service \
-	--force-new-deployment
+	@echo "Updating ECS service and forcing a new deployment..."
+	@aws ecs update-service \
+		--cluster cv-c9-cluster \
+		--service cv-c9-combined-service \
+		--force-new-deployment \
+		--no-cli-pager > /dev/null 2>&1
+	@echo "ECS service has been updated and new containers are running."
 
 # Full infra control
 tf-init:
@@ -187,10 +187,22 @@ tf-destroy:
 tf-output:
 	cd $(TERRAFORM_DIR) && terraform output
 
+tf-refresh:
+	cd $(TERRAFORM_DIR) && terraform refresh
+
+reset-repo:
+	@echo "Resetting ECR repositories..."
+	@aws ecr delete-repository --repository-name cv-c9-backend --region $(AWS_REGION) --no-cli-pager --force > /dev/null 2>&1
+	@aws ecr delete-repository --repository-name cv-c9-frontend --region $(AWS_REGION) --no-cli-pager --force > /dev/null 2>&1
+	@aws ecr create-repository --repository-name cv-c9-backend --region $(AWS_REGION) --no-cli-pager > /dev/null 2>&1
+	@aws ecr create-repository --repository-name cv-c9-frontend --region $(AWS_REGION) --no-cli-pager > /dev/null 2>&1
+	@echo "ECR repositories reset successfully."
+
 deploy-all: \
 	env-prod \
 	tf-init \
 	tf-apply \
+	tf-output \
 	reset-repo \
 	update-frontend-path \
 	update-ecr \
