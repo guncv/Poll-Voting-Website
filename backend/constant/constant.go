@@ -6,4 +6,6 @@ const (
 	ElasticCacheTTL              = 24 * time.Hour
 	Alphabet                     = "abcdefghijklmnopqrstuvwxyz"
 	ParticipantsReachedThreshold = 1
+	HTTPTimeout                  = 30 * time.Second
+	SNSRegion                    = "ap-southeast-1"
 )
