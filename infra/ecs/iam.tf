@@ -1,9 +1,3 @@
-# ===========================
-# ECS CLUSTER
-# ===========================
-resource "aws_ecs_cluster" "cv_c9_cluster" {
-  name = "${var.project}-cluster"
-}
 
 # ===========================
 # Custom Policy to allow access to CloudWatch, VPC Endpoints, and ECR
@@ -68,7 +62,7 @@ resource "aws_iam_policy" "ecs_task_execution_policy_custom" {
 # ===========================
 resource "aws_iam_role" "ecs_task_execution_role" {
   name       = "${var.project}-ecs-task-execution-role"
-  depends_on = [aws_vpc.cv_c9_vpc]
+  depends_on = [var.vpc_id]
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -142,98 +136,4 @@ resource "aws_iam_role_policy_attachment" "ecr_pull_policy_custom" {
 resource "aws_iam_instance_profile" "ecs_task_instance_profile" {
   name = "${var.project}-ecs-task-instance-profile"
   role = aws_iam_role.ecs_task_execution_role.name
-}
-
-# ===========================
-# ECS Security Group
-# ===========================
-resource "aws_security_group" "ecs_sg" {
-  name        = "${var.project}-ecs-sg"
-  description = "Allow traffic to ECS service"
-  vpc_id      = aws_vpc.cv_c9_vpc.id
-
-  # ALB access to frontend
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow frontend (3000) from anywhere"
-  }
-
-  # ALB access to backend
-  ingress {
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow backend (8080) from anywhere"
-  }
-
-  # Default HTTP and HTTPS
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow HTTP traffic"
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow HTTPS traffic"
-  }
-
-  # Outbound (required for ECS, ECR, Redis, etc.)
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "${var.project}-ecs-sg"
-  }
-
-  depends_on = [aws_vpc.cv_c9_vpc]
-}
-
-# ===========================
-# SHARED APPLICATION LOAD BALANCER (ALB)
-# ===========================
-resource "aws_lb" "ecs_alb" {
-  name               = "${var.project}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.ecs_sg.id]  # ECS security group
-  subnets = [
-    aws_subnet.public.id,
-    aws_subnet.public_2.id,
-    aws_subnet.public_3.id
-  ]
-
-  depends_on = [aws_security_group.ecs_sg]
-
-  tags = {
-    Name = "${var.project}-alb"
-  }
-}
-
-resource "aws_lb_listener" "alb_listener" {
-  load_balancer_arn = aws_lb.ecs_alb.arn
-  port              = 80
-  protocol          = "HTTP"
-
-  default_action {
-    type = "fixed-response"
-    fixed_response {
-      content_type = "text/plain"
-      message_body = "404 Not Found"
-      status_code  = "404"
-    }
-  }
 }
