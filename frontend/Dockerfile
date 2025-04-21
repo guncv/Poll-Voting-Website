@@ -16,8 +16,6 @@ FROM node:23-slim
 WORKDIR /app
 
 COPY --from=builder /app ./
-# ✅ Explicitly copy .env
-COPY --from=builder /app/.env .env
 
 EXPOSE 3000
 

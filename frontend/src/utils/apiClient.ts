@@ -1,4 +1,4 @@
-export const API_BASE = 'http://localhost:8080/api';
+export const API_BASE = 'http://cv-c9-alb-471782627.us-west-2.elb.amazonaws.com/api';
 
 let accessToken: string | null =
   typeof window !== 'undefined'

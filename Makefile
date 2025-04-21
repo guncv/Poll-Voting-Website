@@ -101,9 +101,13 @@ deploy-redis:
 		-auto-approve
 
 # Step 4: Deploy ECR repositories (if not created)
-deploy-ecr-repos:
+create-ecr:
 	aws ecr describe-repositories --repository-name cv-c9-backend --region $(AWS_REGION) || aws ecr create-repository --repository-name cv-c9-backend --region $(AWS_REGION)
 	aws ecr describe-repositories --repository-name cv-c9-frontend --region $(AWS_REGION) || aws ecr create-repository --repository-name cv-c9-frontend --region $(AWS_REGION)
+
+deploy-backend: deploy-ecr-login build-backend push-backend
+
+deploy-frontend: deploy-ecr-login build-frontend push-frontend
 
 # Step 5: Deploy ECR login (for Docker login)
 deploy-ecr-login:
@@ -114,7 +118,7 @@ build-backend:
 	docker buildx build --platform linux/amd64 -t cv-c9-backend ./backend
 
 # Step 7: Push Backend Docker Image to ECR (with correct platform)
-push-backend: deploy-ecr-repos deploy-ecr-login
+push-backend: 
 	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest --push ./backend
 
 # Step 8: Build Frontend Docker Image for ECS
@@ -122,9 +126,8 @@ build-frontend:
 	docker buildx build --platform linux/amd64 -t cv-c9-frontend ./frontend
 
 # Step 9: Push Frontend Docker Image to ECR (with correct platform)
-push-frontend: deploy-ecr-repos deploy-ecr-login
+push-frontend: 
 	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest --push ./frontend
-
 # Step 10: Deploy ECS Services (Combined Backend and Frontend)
 deploy-ecs:
 	cd $(TERRAFORM_DIR) && terraform apply \
@@ -137,6 +140,12 @@ deploy-ecs:
 		-refresh=true
 
 deploy-all: deploy-network deploy-redis push-backend push-frontend deploy-ecs
+
+restart-ecs:
+	aws ecs update-service \
+	--cluster cv-c9-cluster \
+	--service cv-c9-combined-service \
+	--force-new-deployment
 
 # Full infra control
 tf-init:
