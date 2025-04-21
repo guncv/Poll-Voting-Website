@@ -23,7 +23,8 @@ output "alb_dns_name" {
   value       = aws_lb.ecs_alb.dns_name
 }
 
+data "aws_caller_identity" "current" {}
+
 output "aws_account_id" {
-  description = "AWS Account ID for ECR"
-  value       = var.aws_account_id
+  value = coalesce(var.aws_account_id, data.aws_caller_identity.current.account_id)
 }

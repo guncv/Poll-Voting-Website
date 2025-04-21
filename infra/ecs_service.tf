@@ -99,26 +99,10 @@ resource "aws_lb_target_group" "backend_tg" {
 # ===========================
 # ALB LISTENER RULES
 # ===========================
-resource "aws_lb_listener_rule" "frontend_rule" {
-  listener_arn = aws_lb_listener.alb_listener.arn
-  priority     = 100
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend_tg.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/*"]  # <-- CHANGE THIS
-    }
-  }
-}
-
 
 resource "aws_lb_listener_rule" "backend_rule" {
   listener_arn = aws_lb_listener.alb_listener.arn
-  priority     = 200
+  priority     = 100
 
   action {
     type             = "forward"
@@ -128,6 +112,22 @@ resource "aws_lb_listener_rule" "backend_rule" {
   condition {
     path_pattern {
       values = ["/api*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "frontend_rule" {
+  listener_arn = aws_lb_listener.alb_listener.arn
+  priority     = 200
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend_tg.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/*"]  # <-- CHANGE THIS
     }
   }
 }

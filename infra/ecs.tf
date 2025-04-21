@@ -63,8 +63,6 @@ resource "aws_iam_policy" "ecs_task_execution_policy_custom" {
   })
 }
 
-
-
 # ===========================
 # IAM ROLE FOR ECS TASKS
 # ===========================
@@ -89,7 +87,6 @@ resource "aws_iam_role" "ecs_task_execution_role" {
 # ===========================
 # Attach IAM Policies to ECS Task Role
 # ===========================
-
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
@@ -138,8 +135,6 @@ resource "aws_iam_role_policy_attachment" "ecr_pull_policy_custom" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = aws_iam_policy.ecs_task_execution_policy_custom.arn
 }
-
-
 
 # ===========================
 # IAM Instance Profile for ECS Tasks
@@ -206,8 +201,6 @@ resource "aws_security_group" "ecs_sg" {
 
   depends_on = [aws_vpc.cv_c9_vpc]
 }
-
-
 
 # ===========================
 # SHARED APPLICATION LOAD BALANCER (ALB)
