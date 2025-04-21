@@ -1,5 +1,6 @@
 TERRAFORM_DIR := infra
 AWS_ACCOUNT_ID := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw aws_account_id)
+ALB_DNS_NAME := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw alb_dns_name)
 AWS_REGION := us-west-2
 
 
@@ -55,16 +56,40 @@ rebuild-prod:
 # =======================
 # Terraform Commands
 # =======================
-
 TERRAFORM_DIR := infra
 
-# Step 1: Deploy Redis infrastructure (ElastiCache)
+# Step 1: Refresh Terraform state and output values
+refresh-outputs:
+	cd $(TERRAFORM_DIR) && terraform refresh
+
+# Step 2: Deploy Network (VPC, Subnets, Internet Gateway, Route Tables)
+deploy-network:
+	cd $(TERRAFORM_DIR) && terraform apply \
+		-target=aws_vpc.cv_c9_vpc \
+		-target=aws_subnet.public \
+		-target=aws_subnet.public_2 \
+		-target=aws_subnet.public_3 \
+		-target=aws_subnet.private_1 \
+		-target=aws_subnet.private_2 \
+		-target=aws_subnet.private_3 \
+		-target=aws_internet_gateway.igw \
+		-target=aws_route_table.public_rt \
+		-target=aws_route_table.private_rt \
+		-target=aws_route_table_association.public_assoc \
+		-target=aws_route_table_association.private_assoc_1 \
+		-target=aws_route_table_association.private_assoc_2 \
+		-var-file="terraform.tfvars" \
+		-var-file="private.tfvars" \
+		-auto-approve
+
+# Step 3: Deploy Redis infrastructure (if needed)
 deploy-redis:
 	cd $(TERRAFORM_DIR) && terraform apply \
 		-target=aws_elasticache_cluster.redis \
 		-target=aws_vpc.cv_c9_vpc \
 		-target=aws_subnet.private_1 \
 		-target=aws_subnet.private_2 \
+		-target=aws_subnet.private_3 \
 		-target=aws_subnet.public \
 		-target=aws_internet_gateway.igw \
 		-target=aws_nat_gateway.nat \
@@ -76,39 +101,67 @@ deploy-redis:
 		-var-file="private.tfvars" \
 		-auto-approve
 
-# Step 2: Push Docker Images
+# Step 4: Deploy ECR repositories (if not created)
+create-ecr:
+	aws ecr describe-repositories --repository-name cv-c9-backend --region $(AWS_REGION) || aws ecr create-repository --repository-name cv-c9-backend --region $(AWS_REGION)
+	aws ecr describe-repositories --repository-name cv-c9-frontend --region $(AWS_REGION) || aws ecr create-repository --repository-name cv-c9-frontend --region $(AWS_REGION)
+
+deploy-backend: deploy-ecr-login build-backend push-backend
+
+deploy-frontend: deploy-ecr-login build-frontend push-frontend
+
+# Step 5: Deploy ECR login (for Docker login)
 deploy-ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 
+# Step 6: Build Backend Docker Image for ECS
 build-backend:
-	docker build -t cv-c9-backend ./backend
+	docker buildx build --platform linux/amd64 -t cv-c9-backend ./backend
 
-push-backend: deploy-ecr-login
-	docker tag cv-c9-backend $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest
-	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest
+# Step 7: Push Backend Docker Image to ECR (with correct platform)
+push-backend: 
+	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-backend:latest --push ./backend
 
+# Step 8: Build Frontend Docker Image for ECS
 build-frontend:
-	docker build -t cv-c9-frontend ./frontend
+	docker buildx build --platform linux/amd64 -t cv-c9-frontend ./frontend
 
-push-frontend: deploy-ecr-login
-	docker tag cv-c9-frontend $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest
-	docker push $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest
-	
-# Step 3: Deploy ECS Services
+# Step 9: Push Frontend Docker Image to ECR (with correct platform)
+push-frontend: 
+	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest --push ./frontend
+
+update-frontend-path:
+	@echo "Fetching ALB DNS name..."
+	@echo "Updating frontend API path with ALB DNS..."
+	@sed -i '' "s|export const API_BASE = 'http://.*';|export const API_BASE = 'http://$(ALB_DNS_NAME)/api';|g" ./frontend/src/utils/apiClient.ts
+	@echo "Frontend API path updated with ALB DNS: $(ALB_DNS_NAME)"
+
+update-ecr: 
+	@echo "Building backend..."
+	build-backend
+	@echo "Pushing backend..."
+	push-backend
+	@echo "Building frontend..."
+	build-frontend
+	@echo "Pushing frontend..."
+	push-frontend
+
+# Step 10: Deploy ECS Services (Combined Backend and Frontend)
 deploy-ecs:
 	cd $(TERRAFORM_DIR) && terraform apply \
 		-target=aws_ecs_cluster.cv_c9_cluster \
-		-target=aws_ecr_repository.backend_repo \
-		-target=aws_ecr_repository.frontend_repo \
-		-target=aws_iam_role.ecs_task_execution_role \
-		-target=aws_iam_role_policy_attachment.ecs_task_execution_policy \
-		-target=aws_ecs_task_definition.backend_task \
-		-target=aws_ecs_task_definition.frontend_task \
-		-target=aws_ecs_service.backend_service \
-		-target=aws_ecs_service.frontend_service \
+		-target=aws_ecs_task_definition.combined_task \
+		-target=aws_ecs_service.combined_service \
 		-var-file="terraform.tfvars" \
 		-var-file="private.tfvars" \
-		-auto-approve
+		-auto-approve \
+		-refresh=true
+
+restart-ecs:
+	aws ecs update-service \
+	--cluster cv-c9-cluster \
+	--service cv-c9-combined-service \
+	--force-new-deployment
 
 # Full infra control
 tf-init:
@@ -133,6 +186,15 @@ tf-destroy:
 
 tf-output:
 	cd $(TERRAFORM_DIR) && terraform output
+
+deploy-all: \
+	env-prod \
+	tf-init \
+	tf-apply \
+	reset-repo \
+	update-frontend-path \
+	update-ecr \
+	restart-ecs
 
 # =======================
 # Environment Switching
@@ -172,12 +234,12 @@ help:
 	@echo "   rebuild-prod  - Clean + Build + Run (prod)"
 	@echo ""
 	@echo " Terraform (Modular):"
-	@echo "   deploy-redis     - Deploy Redis infra (ElastiCache, VPC)"
-	@echo "   build-backend    - Build Docker backend image"
-	@echo "   push-backend     - Push backend image to ECR"
-	@echo "   build-frontend   - Build frontend Docker image"
-	@echo "   push-frontend    - Push frontend image to ECR"
-	@echo "   deploy-ecs       - Deploy ECS Cluster + Tasks"
+	@echo "   deploy-network  - Deploy network infra (VPC, Subnets)"
+	@echo "   build-backend    - Build backend Docker image (linux/amd64)"
+	@echo "   push-backend     - Build & Push backend image to ECR (linux/amd64)"
+	@echo "   build-frontend   - Build frontend Docker image (linux/amd64)"
+	@echo "   push-frontend    - Build & Push frontend image to ECR (linux/amd64)"
+
 	@echo ""
 	@echo " Terraform (Full):"
 	@echo "   tf-init       - Initialize Terraform"

@@ -5,5 +5,5 @@ import "time"
 const (
 	ElasticCacheTTL              = 24 * time.Hour
 	Alphabet                     = "abcdefghijklmnopqrstuvwxyz"
-	ParticipantsReachedThreshold = 100
+	ParticipantsReachedThreshold = 1
 )
