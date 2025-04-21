@@ -1,5 +1,6 @@
 TERRAFORM_DIR := infra
 AWS_ACCOUNT_ID := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw aws_account_id)
+ALB_DNS_NAME := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw alb_dns_name)
 AWS_REGION := us-west-2
 
 
@@ -128,6 +129,23 @@ build-frontend:
 # Step 9: Push Frontend Docker Image to ECR (with correct platform)
 push-frontend: 
 	docker buildx build --platform linux/amd64 -t $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com/cv-c9-frontend:latest --push ./frontend
+
+update-frontend-path:
+	@echo "Fetching ALB DNS name..."
+	@echo "Updating frontend API path with ALB DNS..."
+	@sed -i '' "s|export const API_BASE = 'http://.*';|export const API_BASE = 'http://$(ALB_DNS_NAME)/api';|g" ./frontend/src/utils/apiClient.ts
+	@echo "Frontend API path updated with ALB DNS: $(ALB_DNS_NAME)"
+
+update-ecr: 
+	@echo "Building backend..."
+	build-backend
+	@echo "Pushing backend..."
+	push-backend
+	@echo "Building frontend..."
+	build-frontend
+	@echo "Pushing frontend..."
+	push-frontend
+
 # Step 10: Deploy ECS Services (Combined Backend and Frontend)
 deploy-ecs:
 	cd $(TERRAFORM_DIR) && terraform apply \
@@ -138,8 +156,6 @@ deploy-ecs:
 		-var-file="private.tfvars" \
 		-auto-approve \
 		-refresh=true
-
-deploy-all: deploy-network deploy-redis push-backend push-frontend deploy-ecs
 
 restart-ecs:
 	aws ecs update-service \
@@ -170,6 +186,15 @@ tf-destroy:
 
 tf-output:
 	cd $(TERRAFORM_DIR) && terraform output
+
+deploy-all: \
+	env-prod \
+	tf-init \
+	tf-apply \
+	reset-repo \
+	update-frontend-path \
+	update-ecr \
+	restart-ecs
 
 # =======================
 # Environment Switching

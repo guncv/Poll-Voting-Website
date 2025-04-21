@@ -28,7 +28,7 @@ resource "aws_iam_policy" "ecs_task_execution_policy_custom" {
         ],
         Resource = "arn:aws:ecr:${var.aws_region}:${var.aws_account_id}:repository/*"
       },
-      # Allow ECS Task to write logs to CloudWatch for frontend and backend log groups
+      # Allow ECS Task to write logs to CloudWatch
       {
         Effect = "Allow",
         Action = [
@@ -52,7 +52,7 @@ resource "aws_iam_policy" "ecs_task_execution_policy_custom" {
           "ec2:DescribeSubnets"
         ],
         Resource = "*"
-      }
+      },
     ]
   })
 }
@@ -129,6 +129,13 @@ resource "aws_iam_role_policy_attachment" "ecr_pull_policy_custom" {
   role       = aws_iam_role.ecs_task_execution_role.name
   policy_arn = aws_iam_policy.ecs_task_execution_policy_custom.arn
 }
+
+# Attach SNS Full Access Policy to ECS Task Execution Role
+resource "aws_iam_role_policy_attachment" "sns_full_access" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+}
+
 
 # ===========================
 # IAM Instance Profile for ECS Tasks

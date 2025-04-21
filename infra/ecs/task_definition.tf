@@ -50,6 +50,12 @@ resource "aws_ecs_task_definition" "combined_task" {
           hostPort      = 3000
         }
       ],
+      environment = [
+        {
+          name  = "API_PATH",
+          value = "http://${aws_lb.ecs_alb.dns_name}/api"
+        }
+      ],
       logConfiguration = {
         logDriver = "awslogs",
         options = {

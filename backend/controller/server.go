@@ -1,6 +1,9 @@
 package controller
 
 import (
+	"crypto/tls"
+	"net/http"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
@@ -33,9 +36,18 @@ func NewNotificationClient(cfg config.NotificationConfig, log log.LoggerInterfac
 		cfg.SessionToken,
 	))
 
+	// Set custom HTTP client to skip SSL certificate verification
+	customHTTPClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Disable TLS verification
+		},
+	}
+
+	// Return a new SNS client with the custom HTTP client
 	return sns.New(sns.Options{
 		Credentials: customCreds,
-		Region:      cfg.Region,
+		Region:      "ap-southeast-1", // Replace with your desired region
+		HTTPClient:  customHTTPClient, // Use the custom HTTP client
 	})
 }
 
