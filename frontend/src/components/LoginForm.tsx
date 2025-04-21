@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { InputField } from './InputField';
 import FormLayout from './FormLayout';
@@ -14,6 +14,10 @@ export default function LoginForm() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    console.log('NEXT_PUBLIC_API_PATH:', process.env.NEXT_PUBLIC_API_PATH);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

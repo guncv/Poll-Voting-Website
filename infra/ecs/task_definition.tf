@@ -51,8 +51,8 @@ resource "aws_ecs_task_definition" "combined_task" {
         }
       ],
       environment = [
-        {
-          name  = "API_PATH",
+        {          
+          name  = "NEXT_PUBLIC_API_PATH",
           value = "http://${aws_lb.ecs_alb.dns_name}/api"
         }
       ],
