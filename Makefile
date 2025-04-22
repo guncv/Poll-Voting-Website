@@ -139,9 +139,7 @@ update-frontend-path:
 
 update-ecr: \
 	deploy-ecr-login \
-	build-backend \
 	push-backend \
-	build-frontend \
 	push-frontend
 
 # Step 10: Deploy ECS Services (Combined Backend and Frontend)
