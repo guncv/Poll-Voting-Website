@@ -138,6 +138,7 @@ update-frontend-path:
 	echo "Frontend API path updated with ALB DNS: $(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)"
 
 update-ecr: \
+	deploy-ecr-login \
 	build-backend \
 	push-backend \
 	build-frontend \
