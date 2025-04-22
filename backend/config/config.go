@@ -40,6 +40,7 @@ type Config struct {
 	Notification  NotificationConfig `mapstructure:",squash"`
 	AppEnv        string             `mapstructure:"APP_ENV"`
 	ServerAddress string             `mapstructure:"SERVER_ADDRESS"`
+	CorsECSDomain string             `mapstructure:"CORS_ECS_DOMAIN"`
 }
 
 func LoadConfig() (*Config, error) {

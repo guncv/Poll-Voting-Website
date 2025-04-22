@@ -137,6 +137,12 @@ update-frontend-path:
 	sed -i '' "s|NEXT_PUBLIC_API_PATH=http://.*|NEXT_PUBLIC_API_PATH=http://$(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)/api|g" ./frontend/.env.local
 	echo "Frontend API path updated with ALB DNS: $(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)"
 
+update-cors-domain:
+	echo "Updating CORS domain..."
+	sed -i '' "s|CORS_ECS_DOMAIN=.*|CORS_ECS_DOMAIN=http://$(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)|g" ./backend/.env
+	sed -i '' "s|CORS_ECS_DOMAIN=.*|CORS_ECS_DOMAIN=http://$(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)|g" ./backend/.env.prod
+	echo "CORS domain updated with ALB DNS: $(shell aws elbv2 describe-load-balancers --names cv-c9-alb --query "LoadBalancers[0].DNSName" --output text)"
+
 update-ecr: \
 	deploy-ecr-login \
 	push-backend \
@@ -204,6 +210,7 @@ deploy-all: \
 	tf-output \
 	reset-repo \
 	update-frontend-path \
+	update-cors-domain \
 	update-ecr \
 	restart-ecs
 

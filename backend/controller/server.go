@@ -80,7 +80,7 @@ func NewServer(cfg config.Config, db *gorm.DB, cacheService db.CacheService) *Se
 
 	// Enable CORS
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000", // or your frontend URL
+		AllowOrigins:     cfg.CorsECSDomain,
 		AllowCredentials: true,
 	}))
 
