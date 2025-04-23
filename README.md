@@ -40,19 +40,49 @@ This guide explains how to deploy the infrastructure using **Terraform**, **Dock
 ---
 
 ### 📦 Project Structure
+
 ```
 .
-├── backend/              # Go server
-├── frontend/             # Next.js app
-├── infra/                # Terraform configurations
-│   ├── elasticache.tf
-│   ├── ecs.tf
-│   ├── backend_ecs.tf
-│   ├── frontend_ecs.tf
-│   ├── variables.tf
+├── backend/                   # Go server
+├── frontend/                  # Next.js app
+├── infra/                     # Terraform configurations
+│   ├── ecs/                   # ECS-related resources (ALB, cluster, tasks, etc.)
+│   │   ├── alb.tf
+│   │   ├── alb_target_group.tf
+│   │   ├── cloud_logs.tf
+│   │   ├── cluster.tf
+│   │   ├── iam.tf
+│   │   ├── output.tf
+│   │   ├── security.tf
+│   │   ├── service.tf
+│   │   ├── task_definition.tf
+│   │   ├── variable.tf
+│   │   └── vpc_endpoint.tf
+│   ├── elasticache/           # ElastiCache Redis config
+│   │   ├── cluster.tf
+│   │   ├── output.tf
+│   │   ├── security.tf
+│   │   ├── subnet_group.tf
+│   │   └── variable.tf
+│   ├── vpc/                   # VPC networking setup
+│   │   ├── internet_gateway.tf
+│   │   ├── nat.tf
+│   │   ├── output.tf
+│   │   ├── route_table.tf
+│   │   ├── security.tf
+│   │   ├── subnet.tf
+│   │   ├── variable.tf
+│   │   └── vpc.tf
+│   ├── main.tf
 │   ├── outputs.tf
-│   └── terraform.tfvars / private.tfvars
-├── Makefile              # Deployment commands
+│   ├── provider.tf
+│   ├── terraform.tfvars       # Shared variables
+│   └── variables.tf
+├── docker-compose.yml         # Docker multi-service config
+├── docker-compose.override.yml
+├── .dockerignore
+├── .gitignore
+├── Makefile                   # Deployment and utility commands
 └── README.md
 ```
 
@@ -73,138 +103,110 @@ aws_access_key = "YOUR_AWS_ACCESS_KEY"
 aws_secret_key = "YOUR_AWS_SECRET_KEY"
 aws_account_id = "YOUR_AWS_ACCOUNT_ID"
 ```
+Sure! Based on your Makefile, here's a breakdown of the `make deploy-all` and its sub-methods that are executed, which you can include in your README file. The explanation will help users understand how each step in the Makefile contributes to the full deployment process.
 
 ---
 
-### 🛠  Step-by-Step Deployment Workflow
+### 🛠 Step-by-Step Explanation of `make deploy-all`
 
-#### 1. 🧱 Initialize Terraform
+The `make deploy-all` command is a combination of various steps to initialize, deploy, and configure the entire infrastructure and application stack. Below is a detailed explanation of what happens when you run `make deploy-all`:
 
-```bash
-make tf-init
-```
+#### 1. 🧑‍💻 **Switch to Production Environment**
+   ```bash
+   make env-prod
+   ```
+   - This step ensures that the system is using the production environment variables. It copies the production `.env.prod` file to `.env`, which is used by both the backend and frontend services to connect to the appropriate services and databases in the production environment.
 
----
+#### 2. ⚙️ **Initialize Terraform**
+   ```bash
+   make tf-init
+   ```
+   - This command initializes Terraform and prepares it to manage the infrastructure. It sets up the backend state and makes sure that all dependencies are in place for applying infrastructure configurations.
 
-### 2. 🌱 Deploy Redis Infrastructure (VPC, Subnets, ElastiCache)
+#### 3. 🚀 **Apply Terraform Configurations**
+   ```bash
+   make tf-apply
+   ```
+   - This step applies the Terraform configuration to provision all necessary AWS infrastructure resources, such as the VPC, subnets, security groups, ECS, ECR, and ElastiCache. It sets up the environment as per your specifications in the `terraform.tfvars` and `private.tfvars` files.
 
-```bash
-make deploy-redis
-```
+#### 4. 🗂 **Display Terraform Outputs**
+   ```bash
+   make tf-output
+   ```
+   - Once the infrastructure is applied, this command fetches the output values from Terraform, such as DNS names for the ALB (Application Load Balancer) and Redis endpoints. These outputs are used in the next steps to configure the backend and frontend services.
 
-This command provisions:
-- 🟢 VPC + public and private subnets  
-- 🌐 Internet & NAT Gateways  
-- 🔒 Redis (ElastiCache) in a secure private subnet
+#### 5. 🔄 **Reset ECR Repositories (Optional)**
+   ```bash
+   make reset-repo
+   ```
+   - This command ensures that the necessary Elastic Container Registry (ECR) repositories are set up for the backend and frontend images. If the repositories already exist, they are deleted and recreated to ensure a clean slate for the deployment.
 
-After it's deployed, retrieve the Redis host:
+#### 6. 🌍 **Update Frontend API Path**
+   ```bash
+   make update-frontend-path
+   ```
+   - This step updates the frontend configuration with the ALB's DNS name, ensuring that the frontend knows where to send API requests. It modifies the `.env.local` file in the frontend directory to reference the correct API base URL.
 
-```bash
-make tf-output
-```
+#### 7. 🔐 **Update CORS Domain**
+   ```bash
+   make update-cors-domain
+   ```
+   - This step ensures that the backend allows CORS (Cross-Origin Resource Sharing) requests from the frontend, which is necessary for handling requests between the backend and frontend hosted on different domains or subdomains.
 
-Then copy the `redis_endpoint` and set it inside:
+#### 8. 🚢 **Build & Push Backend and Frontend Docker Images**
+   ```bash
+   make update-ecr
+   ```
+   - This combines the backend and frontend image build and push steps. It first logs into AWS ECR, builds Docker images for both services, and then pushes them to the correct ECR repositories for backend and frontend containers. These images are used in the ECS services.
 
-```
-backend/.env.prod
-```
-
-Example:
-```env
-REDIS_HOST=your-elasticache-host.amazonaws.com
-REDIS_PORT=6379
-```
-
----
-
-### 3. 🛠️ Build & Push Backend Docker Image to ECR
-
-```bash
-make build-backend
-make push-backend
-```
-
-✅ This builds your Go backend and pushes it to **Amazon ECR** using your AWS Account ID and region.
-
----
-
-### 4. 🚀 Deploy Backend Service to ECS (Fargate)
-
-```bash
-make deploy-ecs
-```
-
-✅ This sets up:
-- ECS Cluster
-- Backend ECS Fargate Service
-- ALB (Application Load Balancer)
-- Target Group and Listener for `/api*` routes
+#### 9. 🔄 **Restart ECS Services**
+   ```bash
+   make restart-ecs
+   ```
+   - This forces a new deployment of the ECS services, updating them with the latest Docker images and configurations. It's used to ensure the backend and frontend services run with the most recent changes.
 
 ---
 
-### 5. 🌐 Get the Backend URL from ALB
+### 🔄 Redeploying Specific Services
 
-After the ECS deployment completes, run:
+If you only need to redeploy one service, you can run the following commands:
 
-```bash
-make tf-output
-```
+- **Redeploy Backend:**
+   ```bash
+   make build-backend && make push-backend && make deploy-ecs
+   ```
+   This will rebuild the backend Docker image, push it to ECR, and redeploy it to ECS.
 
-Then copy the `alb_dns_name` and paste it in:
-
-```
-frontend/.env.prod
-```
-
-Example:
-```env
-NEXT_PUBLIC_API_BASE_URL=http://<alb_dns_name>/api
-```
+- **Redeploy Frontend:**
+   ```bash
+   make build-frontend && make push-frontend && make deploy-ecs
+   ```
+   This will rebuild the frontend Docker image, push it to ECR, and redeploy it to ECS.
 
 ---
 
-### 6. 🛠️ Build & Push Frontend Image to ECR
+### 🧹 Cleanup (Destroy All Infrastructure)
 
-```bash
-make build-frontend
-make push-frontend
-```
-
-✅ This builds your Next.js app and uploads it to ECR.
-
----
-
-### 7. 🚀 Deploy Frontend to ECS
-
-```bash
-make deploy-ecs
-```
-
-✅ This reuses the existing ECS cluster and deploys the frontend container via Fargate behind the same ALB (routing on `/`).
-
----
-
-## 🔁 Redeploy Only What You Changed
-
-### 🌀 If you change only the backend:
-
-```bash
-make build-backend && make push-backend && make deploy-ecs
-```
-
-### 🌀 If you change only the frontend:
-
-```bash
-make build-frontend && make push-frontend && make deploy-ecs
-```
-
----
-
-## 🔥 Cleanup (Destroy All Infrastructure)
+To tear down everything (ECS, Redis, VPC, and related AWS infrastructure), you can run:
 
 ```bash
 make tf-destroy
 ```
 
-This tears down everything — ECS, Redis, subnets, VPC, and related AWS infra.
+This command will safely remove all the resources provisioned by Terraform, including ECS, Redis, and networking components.
 
+---
+
+### 🧑‍💼 Summary of Key `Makefile` Commands
+
+| Command                | Description                                                    |
+|------------------------|----------------------------------------------------------------|
+| `make deploy-all`       | Full deployment of the entire stack, including backend, frontend, and infrastructure. |
+| `make tf-init`          | Initializes Terraform and sets up backend state.               |
+| `make tf-apply`         | Applies Terraform configurations to create all infrastructure resources. |
+| `make tf-output`        | Fetches output values like ALB DNS and Redis endpoint.        |
+| `make update-frontend-path` | Updates the frontend with the ALB DNS name for API communication. |
+| `make update-cors-domain` | Configures CORS settings for the backend to accept frontend requests. |
+| `make update-ecr`       | Builds and pushes backend/ frontend Docker images to ECR.     |
+| `make restart-ecs`      | Forces a new deployment of the ECS services.                  |
+| `make tf-destroy`       | Destroys all infrastructure created by Terraform.             |
