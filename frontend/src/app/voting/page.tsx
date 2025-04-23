@@ -125,7 +125,7 @@ export default function VotingPage() {
     if (!userID) return;
     try {
       const data = await fetchCacheToday();
-      if (!data.questions) throw new Error('Invalid response.');
+      if (!data.questions) return;
       const mainOnly = (data.questions as CacheQuestion[]).filter(isMainQuestion);
       setAllQuestions(mainOnly);
     } catch (err: any) {

@@ -3,7 +3,7 @@ package constant
 import "time"
 
 const (
-	ElasticCacheTTL              = 24 * time.Hour
+	ElasticCacheTTL              = 2 * time.Minute
 	Alphabet                     = "abcdefghijklmnopqrstuvwxyz"
 	ParticipantsReachedThreshold = 1
 	HTTPTimeout                  = 30 * time.Second
