@@ -35,7 +35,8 @@ This guide explains how to deploy the infrastructure using **Terraform**, **Dock
 - ✅ Docker installed and running
 - ✅ AWS CLI configured (`aws configure`)
 - ✅ Access to ECR, ECS, and ElastiCache via IAM
-- ✅ `.env.prod` prepared for `backend` and `frontend`
+- ✅ `.env.local` prepared for `backend` and `frontend`
+- ✅ `.env.prod` prepared for `backend` 
 
 ---
 
@@ -103,7 +104,6 @@ aws_access_key = "YOUR_AWS_ACCESS_KEY"
 aws_secret_key = "YOUR_AWS_SECRET_KEY"
 aws_account_id = "YOUR_AWS_ACCOUNT_ID"
 ```
-Sure! Based on your Makefile, here's a breakdown of the `make deploy-all` and its sub-methods that are executed, which you can include in your README file. The explanation will help users understand how each step in the Makefile contributes to the full deployment process.
 
 ---
 
@@ -173,13 +173,13 @@ If you only need to redeploy one service, you can run the following commands:
 
 - **Redeploy Backend:**
    ```bash
-   make build-backend && make push-backend && make deploy-ecs
+   make push-backend && make deploy-ecs
    ```
    This will rebuild the backend Docker image, push it to ECR, and redeploy it to ECS.
 
 - **Redeploy Frontend:**
    ```bash
-   make build-frontend && make push-frontend && make deploy-ecs
+   make push-frontend && make deploy-ecs
    ```
    This will rebuild the frontend Docker image, push it to ECR, and redeploy it to ECS.
 
