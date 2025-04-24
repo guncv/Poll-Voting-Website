@@ -1,5 +1,5 @@
 TERRAFORM_DIR := infra
-AWS_ACCOUNT_ID := 913524943390
+AWS_ACCOUNT_ID := 038462770671
 ALB_DNS_NAME := $(shell terraform -chdir=$(TERRAFORM_DIR) output -raw alb_dns_name)
 AWS_REGION := us-west-2
 
@@ -197,11 +197,32 @@ tf-refresh:
 
 reset-repo:
 	@echo "Resetting ECR repositories..."
-	@aws ecr delete-repository --repository-name cv-c9-backend --region $(AWS_REGION) --no-cli-pager --force > /dev/null 2>&1
-	@aws ecr delete-repository --repository-name cv-c9-frontend --region $(AWS_REGION) --no-cli-pager --force > /dev/null 2>&1
-	@aws ecr create-repository --repository-name cv-c9-backend --region $(AWS_REGION) --no-cli-pager > /dev/null 2>&1
-	@aws ecr create-repository --repository-name cv-c9-frontend --region $(AWS_REGION) --no-cli-pager > /dev/null 2>&1
+	# Delete only if it already exists
+	@aws ecr describe-repositories \
+	    --repository-names cv-c9-backend \
+	    --region $(AWS_REGION) >/dev/null 2>&1 \
+	  && aws ecr delete-repository \
+	       --repository-name cv-c9-backend \
+	       --region $(AWS_REGION) \
+	       --force
+	@aws ecr describe-repositories \
+	    --repository-names cv-c9-frontend \
+	    --region $(AWS_REGION) >/dev/null 2>&1 \
+	  && aws ecr delete-repository \
+	       --repository-name cv-c9-frontend \
+	       --region $(AWS_REGION) \
+	       --force
+
+	# Now (re)create them—ignore "already exists" on create
+	@aws ecr create-repository \
+	    --repository-name cv-c9-backend \
+	    --region $(AWS_REGION) >/dev/null 2>&1 || true
+	@aws ecr create-repository \
+	    --repository-name cv-c9-frontend \
+	    --region $(AWS_REGION) >/dev/null 2>&1 || true
+
 	@echo "ECR repositories reset successfully."
+
 
 deploy-all: \
 	env-prod \
