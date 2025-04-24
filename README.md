@@ -1,13 +1,20 @@
 # 🗳️ Poll-Voting-Website
 
-A full-stack web application where users vote on a daily "hot" question with two simple, fun, or thought-provoking answer choices. Designed to be lightweight, interactive, and engaging.
+A full-stack web application allowing users to vote on a daily "hot" question, featuring two simple, fun, or thought-provoking answer choices. Designed to be lightweight, interactive, and engaging.
+
+**Created by CV On Cloud9**  
+**Cloud Computing Final Project (2110524)**  
+
+- จิรวัฒน์ เล่งน้อย (6431307421)  
+- ชนกันต์ วิริยะสถาพรพงศ์ (6431309721)  
+- ณัฐศิษฐ์ วิริยะโยธิน (6431318321)
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js
-- **Backend**: Golang (Gin)
+- **Frontend**: Next.js + Typescript  
+- **Backend**: Golang (Fiber)
 - **Containerization**: Docker
 - **Infrastructure as Code**: Terraform
 - **Deployment**: AWS ECS (Fargate)
@@ -16,10 +23,43 @@ A full-stack web application where users vote on a daily "hot" question with two
 
 ## ☁️ AWS Services Used
 
-- **Amazon ECS (Fargate)** – Hosts the frontend and backend in containers with serverless scalability.
-- **Amazon ElastiCache (Redis)** – Caches real-time voting data with a 24-hour TTL and auto-reset.
-- **Amazon SNS** – Sends notifications for milestones and trending questions.
-- **Amazon RDS (PostgreSQL)** – Stores user data, metadata, and question content.
+| Service                        | Description                                                  |
+|--------------------------------|--------------------------------------------------------------|
+| **Amazon ECS (Fargate)**       | Hosts the frontend and backend with serverless scalability.  |
+| **Amazon ElastiCache (Redis)** | Real-time caching for voting data (24-hour TTL, auto-reset). |
+| **Amazon SNS**                 | Sends notifications for user and admin milestones.           |
+| **Amazon RDS (PostgreSQL)**    | Stores user data, metadata, and question content.            |
+| **Amazon ECR**                 | Stores Docker images for backend and frontend.               |
+
+---
+
+## 🔐 IAM User and Policies Setup
+
+### Terraform IAM User Policies (Full Access):
+
+To provision AWS resources via Terraform, create an IAM user with these policies:
+
+- `AmazonEC2ContainerRegistryFullAccess`
+- `AmazonEC2FullAccess`
+- `AmazonECS_FullAccess`
+- `AmazonElastiCacheFullAccess`
+- `AmazonS3FullAccess`
+- `CloudWatchLogsFullAccess`
+- `ElasticLoadBalancingFullAccess`
+- `IAMFullAccess`
+- `AmazonSNSFullAccess`
+
+After creating this IAM user:
+
+- Configure the AWS CLI locally with the IAM user's **ACCESS KEY** and **SECRET KEY**.
+- Copy these keys into `infra/private.tfvars`.
+
+### SNS IAM User (Limited):
+
+Create a separate IAM user with minimal SNS permissions (**Publish only**).  
+- Retrieve its **ACCESS KEY** and **SECRET KEY**.
+- Store these credentials in the backend `.env` file (`SNS_ACCESS_KEY`, `SNS_SECRET_KEY`).
+- this user is only used within the app for sending notifications, not for deploying anything.
 
 ---
 
@@ -31,9 +71,10 @@ This guide explains how to deploy the infrastructure using **Terraform**, **Dock
 
 ### ⚙️ Prerequisites
 
-- ✅ Terraform installed
-- ✅ Docker installed and running
-- ✅ AWS CLI configured (`aws configure`)
+- ✅ [Terraform](https://developer.hashicorp.com/terraform/downloads)
+- ✅ [Docker](https://docs.docker.com/get-docker/)
+- ✅ [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- ✅ `make` utility (`brew install make` on MacOS or `apt install make` on Ubuntu)
 - ✅ Access to ECR, ECS, and ElastiCache via IAM
 - ✅ `.env.local` prepared for `backend` and `frontend`
 - ✅ `.env.prod` prepared for `backend` 
@@ -44,48 +85,120 @@ This guide explains how to deploy the infrastructure using **Terraform**, **Dock
 
 ```
 .
-├── backend/                   # Go server
-├── frontend/                  # Next.js app
-├── infra/                     # Terraform configurations
-│   ├── ecs/                   # ECS-related resources (ALB, cluster, tasks, etc.)
-│   │   ├── alb.tf
-│   │   ├── alb_target_group.tf
-│   │   ├── cloud_logs.tf
-│   │   ├── cluster.tf
-│   │   ├── iam.tf
-│   │   ├── output.tf
-│   │   ├── security.tf
-│   │   ├── service.tf
-│   │   ├── task_definition.tf
-│   │   ├── variable.tf
-│   │   └── vpc_endpoint.tf
-│   ├── elasticache/           # ElastiCache Redis config
-│   │   ├── cluster.tf
-│   │   ├── output.tf
-│   │   ├── security.tf
-│   │   ├── subnet_group.tf
-│   │   └── variable.tf
-│   ├── vpc/                   # VPC networking setup
-│   │   ├── internet_gateway.tf
-│   │   ├── nat.tf
-│   │   ├── output.tf
-│   │   ├── route_table.tf
-│   │   ├── security.tf
-│   │   ├── subnet.tf
-│   │   ├── variable.tf
-│   │   └── vpc.tf
+├── backend/                     # Backend Golang server (Fiber)
+│   ├── .env                     # Development/production config
+│   ├── .env.prod                # Production environment config
+│   └── Dockerfile               # used in production deployment
+│   └── Dockerfile.dev           # for development
+├── frontend/                    # Frontend Next.js application
+│   ├── .env                     # Default environment variables
+│   ├── .env.local               # Local overrides for development
+│   └── Dockerfile               # used in production deployment
+│   └── Dockerfile.dev           # for development
+├── infra/                       # Terraform infrastructure code
+│   ├── ecs/                     # ECS & related resources
+│   ├── elasticache/             # Redis caching layer
+│   ├── vpc/                     # VPC and networking setup
+│   └── private.tfvars           # AWS credentials for Terraform
 │   ├── main.tf
 │   ├── outputs.tf
 │   ├── provider.tf
 │   ├── terraform.tfvars       # Shared variables
 │   └── variables.tf
 ├── docker-compose.yml         # Docker multi-service config
-├── docker-compose.override.yml
+├── docker-compose.override.yml # for development purpose used to override the default Compose settings for development
 ├── .dockerignore
 ├── .gitignore
 ├── Makefile                   # Deployment and utility commands
 └── README.md
 ```
+
+
+---
+
+## 🔧 Environment Variables (.env Example)
+
+Create these environment files based on the examples below.
+
+### Backend (`backend/.env` and `backend/.env.prod`):
+
+```bash
+# Database Configuration
+DB_DRIVER=postgres
+DB_HOST=<your-db-host>
+DB_PORT=5432
+DB_USER=<your-db-user>
+DB_PASSWORD=<your-db-password>
+DB_NAME=poll_app
+DB_SSLMODE=require
+
+# AWS & SNS Configuration
+SNS_ACCESS_KEY=<sns-access-key>
+SNS_SECRET_KEY=<sns-secret-key>
+SNS_SESSION_TOKEN=
+AWS_REGION=ap-southeast-1
+ADMIN_TOPIC_ARN=<admin-sns-topic-arn>
+USER_TOPIC_ARN=<user-sns-topic-arn>
+
+# Application Config
+APP_ENV=dev
+SERVER_ADDRESS=:8080
+
+# Redis Configuration
+REDIS_HOST=<redis-host>
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# Frontend URL (for CORS security)
+CORS_ECS_DOMAIN=<frontend-ecs-domain>
+```
+
+> Example
+```bash
+DB_DRIVER=postgres
+DB_HOST=<SECRET>
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=<SECRET>
+DB_NAME=poll_app
+DB_SSLMODE=require
+
+SNS_ACCESS_KEY=<SECRET>
+SNS_SECRET_KEY=<SECRET>
+SNS_SESSION_TOKEN=
+AWS_REGION=ap-southeast-1
+ADMIN_TOPIC_ARN=arn:aws:sns:ap-southeast-1:<SECRET>:CloudProjAdminNotification
+USER_TOPIC_ARN=arn:aws:sns:ap-southeast-1:<SECRET>:CloudProjUserNotification
+
+APP_ENV=dev
+SERVER_ADDRESS=:8080
+
+REDIS_HOST=<SECRET>
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+CORS_ECS_DOMAIN=http://cv-c9-alb-267285815.us-west-2.elb.amazonaws.com
+```
+
+### Frontend (`frontend/.env` and `frontend/.env.local`):
+
+```bash
+# Backend API Endpoint
+NEXT_PUBLIC_API_PATH=<backend-api-url>/api
+```
+
+> Example
+```bash
+# Backend API Endpoint
+NEXT_PUBLIC_API_PATH=http://cv-c9-alb-267285815.us-west-2.elb.amazonaws.com/api
+```
+
+
+For current configuration, the `frontend-ecs-domain` and `backend-api-url` will  be the same which are `ECS ALB DNS` that you can see in the `ECS` configuration or in the output after finish applying terraform
+
+Both `CORS_ECS_DOMAIN` and `NEXT_PUBLIC_API_PATH` resolve to the ALB DNS. This ensures secure, internal-only communication between frontend and backend.
 
 ---
 
@@ -107,15 +220,36 @@ aws_account_id = "YOUR_AWS_ACCOUNT_ID"
 
 ---
 
+
+### 🧑‍💼 Summary of Key `Makefile` Commands
+
+Here is the table for important commands in `Makefile` so that you can understand more about what it did
+
+| Command                     | Description                                                    |
+|-----------------------------|----------------------------------------------------------------|
+| `make deploy-all`           | Full deployment of the entire stack, including backend, frontend, and infrastructure. |
+| `make tf-init`              | Initializes Terraform and sets up backend state.               |
+| `make tf-apply`             | Applies Terraform configurations to create all infrastructure resources. |
+| `make tf-output`            | Fetches output values like ALB DNS and Redis endpoint.        |
+| `make update-frontend-path` | Updates the frontend with the ALB DNS name for API communication. |
+| `make update-cors-domain`   | Configures CORS settings for the backend to accept frontend requests. |
+| `make update-ecr`           | Builds and pushes backend/ frontend Docker images to ECR.     |
+| `make restart-ecs`          | Forces a new deployment of the ECS services.                  |
+| `make tf-destroy`           | Destroys all infrastructure created by Terraform.             |
+
+---
+
 ### 🛠 Step-by-Step Explanation of `make deploy-all`
 
-The `make deploy-all` command is a combination of various steps to initialize, deploy, and configure the entire infrastructure and application stack. Below is a detailed explanation of what happens when you run `make deploy-all`:
+The `make deploy-all` command combines multiple steps to initialize, deploy, and configure the entire infrastructure and application stack. Below is a detailed breakdown of each step.
+
+> 💡 **Note:** You don't have to use `make` if you prefer not to install the `make` utility. All commands used in the Makefile are standard CLI commands — feel free to copy and run them directly from the `Makefile`.
 
 #### 1. 🧑‍💻 **Switch to Production Environment**
    ```bash
    make env-prod
    ```
-   - This step ensures that the system is using the production environment variables. It copies the production `.env.prod` file to `.env`, which is used by both the backend and frontend services to connect to the appropriate services and databases in the production environment.
+   - This step ensures that the system is using the production environment variables. It copies the production `.env.prod` file to `.env`, which is used by backend service to connect to the appropriate services and databases in the production environment.
 
 #### 2. ⚙️ **Initialize Terraform**
    ```bash
@@ -197,16 +331,8 @@ This command will safely remove all the resources provisioned by Terraform, incl
 
 ---
 
-### 🧑‍💼 Summary of Key `Makefile` Commands
+## 🗂 Helpful Resources & Documentation
 
-| Command                | Description                                                    |
-|------------------------|----------------------------------------------------------------|
-| `make deploy-all`       | Full deployment of the entire stack, including backend, frontend, and infrastructure. |
-| `make tf-init`          | Initializes Terraform and sets up backend state.               |
-| `make tf-apply`         | Applies Terraform configurations to create all infrastructure resources. |
-| `make tf-output`        | Fetches output values like ALB DNS and Redis endpoint.        |
-| `make update-frontend-path` | Updates the frontend with the ALB DNS name for API communication. |
-| `make update-cors-domain` | Configures CORS settings for the backend to accept frontend requests. |
-| `make update-ecr`       | Builds and pushes backend/ frontend Docker images to ECR.     |
-| `make restart-ecs`      | Forces a new deployment of the ECS services.                  |
-| `make tf-destroy`       | Destroys all infrastructure created by Terraform.             |
+- [Terraform Documentation](https://developer.hashicorp.com/terraform/docs)
+- [AWS CLI User Guide](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html)
+- [Docker Documentation](https://docs.docker.com)
