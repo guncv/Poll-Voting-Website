@@ -219,59 +219,67 @@ func (qs *QuestionService) VoteForQuestion(ctx context.Context, vote entity.Vote
 }
 
 func (qs *QuestionService) CreateQuestionCache(ctx context.Context, req entity.CreateQuestionCacheRequest) (string, error) {
-	id := uuid.New().String()
-	date := util.TodayDate()
-	key := "question:" + date + ":" + id
+    id := uuid.New().String()
+    date := util.TodayDate()
+    key := "question:" + date + ":" + id
 
-	qs.log.InfoWithID(ctx, "[Service: CreateQuestionCache] Called for key:", key)
+    qs.log.InfoWithID(ctx, "[Service: CreateQuestionCache] Called for key:", key)
 
-	// Build data as map for Redis
-	data := map[string]string{
-		"question_id":         id,
-		"user_id":             req.UserID,
-		"text":                req.Text,
-		"first_choice":        req.FirstChoice,
-		"second_choice":       req.SecondChoice,
-		"first_choice_count":  "0",
-		"second_choice_count": "0",
-		"total_participants":  "0",
-		"milestones":          req.Milestones,
-		"follow_ups":          req.FollowUps,
-		"group_id":            req.GroupID,
-	}
+    data := map[string]string{
+        "question_id":         id,
+        "user_id":             req.UserID,
+        "text":                req.Text,
+        "first_choice":        req.FirstChoice,
+        "second_choice":       req.SecondChoice,
+        "first_choice_count":  "0",
+        "second_choice_count": "0",
+        "total_participants":  "0",
+        "milestones":          req.Milestones,
+        "follow_ups":          req.FollowUps,
+        "group_id":            req.GroupID,
+    }
 
-	if err := qs.cache.SetHash(key, data); err != nil {
-		qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Failed to store in Redis:", err)
-		return "", err
-	}
+    if err := qs.cache.SetHash(key, data); err != nil {
+        qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Failed to store in Redis:", err)
+        return "", err
+    }
 
-	if err := qs.cache.AddToSet("questions:"+date, id); err != nil {
-		return "", err
-	}
+    if err := qs.cache.AddToSet("questions:"+date, id); err != nil {
+        return "", err
+    }
 
-	user, err := qs.userService.GetUserByID(ctx, req.UserID)
-	if err != nil {
-		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error getting user:", err)
-		return "", err
-	}
+    now := time.Now()
+    endOfDay := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+    ttl := time.Until(endOfDay)
 
-	isAdmin, err := qs.notificationService.CheckIsAdmin(ctx, user.Email)
-	if err != nil {
-		qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error checking if user is admin:", err)
-		return "", err
-	}
+    _ = qs.cache.SetTTL(key, ttl)                 // expire question:<date>:<id>
+    _ = qs.cache.SetTTL("questions:"+date, ttl)   // expire questions:<date> set
 
-	if isAdmin {
-		questionAlert := fmt.Sprintf("Question: %s\nFirst Choice: %s\nSecond Choice: %s\nCreated By: %s", req.Text, req.FirstChoice, req.SecondChoice, user.Email)
-		err = qs.notificationService.NotifyUserOfAdminQuestion(ctx, user.Email, "Admin Question", questionAlert)
-		if err != nil {
-			qs.log.ErrorWithID(ctx, "[Service: CreateQuestion] Error notifying user of admin question:", err)
-			return "", err
-		}
-	}
+    // Notify if admin
+    user, err := qs.userService.GetUserByID(ctx, req.UserID)
+    if err != nil {
+        qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Error getting user:", err)
+        return "", err
+    }
 
-	return id, nil
+    isAdmin, err := qs.notificationService.CheckIsAdmin(ctx, user.Email)
+    if err != nil {
+        qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Error checking if user is admin:", err)
+        return "", err
+    }
+
+    if isAdmin {
+        questionAlert := fmt.Sprintf("Question: %s\nFirst Choice: %s\nSecond Choice: %s\nCreated By: %s", req.Text, req.FirstChoice, req.SecondChoice, user.Email)
+        err = qs.notificationService.NotifyUserOfAdminQuestion(ctx, user.Email, "Admin Question", questionAlert)
+        if err != nil {
+            qs.log.ErrorWithID(ctx, "[Service: CreateQuestionCache] Error notifying user of admin question:", err)
+            return "", err
+        }
+    }
+
+    return id, nil
 }
+
 
 func (qs *QuestionService) GetQuestionCache(ctx context.Context, questionID string) (model.QuestionCache, error) {
 	date := util.TodayDate()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/guncv/Poll-Voting-Website/backend/config"
 	"github.com/redis/go-redis/v9"
@@ -22,6 +23,7 @@ type CacheService interface {
 	AddToSet(key, value string) error
 	GetSetMembers(key string) ([]string, error)
 	DeleteKey(key string) error
+	SetTTL(key string, ttl time.Duration) error
 }
 
 type RedisCacheService struct {
@@ -49,7 +51,6 @@ func NewRedisCacheService(cfg config.Config) *RedisCacheService {
 		ctx: ctx,
 	}
 }
-
 
 func (r *RedisCacheService) Get(key string) (string, error) {
 	val, err := r.rdb.Get(r.ctx, key).Result()
@@ -114,4 +115,8 @@ func (r *RedisCacheService) GetSetMembers(key string) ([]string, error) {
 
 func (r *RedisCacheService) DeleteKey(key string) error {
 	return r.rdb.Del(r.ctx, key).Err()
+}
+
+func (r *RedisCacheService) SetTTL(key string, ttl time.Duration) error {
+    return r.rdb.Expire(context.Background(), key, ttl).Err()
 }
